@@ -9,13 +9,15 @@ stack (Slint UI on the Android platform).
 
 ## Status
 
-> 🚧 **Pre-alpha — documentation & scaffolding phase.** No usable app yet.
+> 🚧 **Pre-alpha — M0 foundations complete.** App shell compiles, CI green, no usable features yet.
 
 | Area | State |
 |------|-------|
-| Planning & specs | In progress (see [TODO.md](TODO.md)) |
-| Rust workspace skeleton | In progress |
-| Android app shell (M0) | Planned |
+| Planning & specs | Done |
+| Rust workspace + domain layer | Done |
+| CI (host + Android APK) | Done |
+| Android app shell (M0) | Done |
+| EPUB reader core (M1) | Not started |
 | Play Store release | Not started |
 
 ## Feature map (Apple Books parity)

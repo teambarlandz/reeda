@@ -65,10 +65,10 @@
 
 ### M0.6 Android bridge stubs
 
-- [ ] `reeda-ui/src/android/mod.rs` — SAF file picker stub (returns `Result<Uri>`, real impl later)
-- [ ] `reeda-ui/src/android/mod.rs` — intent data reader stub
-- [ ] `reeda-ui/src/android/mod.rs` — permission request stub
-- [ ] `reeda-tts` — keep `platform-desktop` stub as-is for M0 (real JNI bridge in M5)
+- [x] `reeda-ui/src/android/mod.rs` — SAF file picker stub (returns `Result<Uri>`, real impl later)
+- [x] `reeda-ui/src/android/mod.rs` — intent data reader stub
+- [x] `reeda-ui/src/android/mod.rs` — permission request stub
+- [x] `reeda-tts` — keep `platform-desktop` stub as-is for M0 (real JNI bridge in M5)
 
 ### M0.7 reeda-epub / reeda-pdf / reeda-search / reeda-tts (skeleton keep)
 
@@ -88,8 +88,8 @@
 
 ### M0.9 Documentation updates
 
-- [ ] Update CHANGELOG.md with M0 additions
-- [ ] Update README.md status table (M0 → In Progress / Done)
+- [x] Update CHANGELOG.md with M0 additions
+- [x] Update README.md status table (M0 → In Progress / Done)
 - [ ] Verify all cross-references in docs/ are valid
 
 ---

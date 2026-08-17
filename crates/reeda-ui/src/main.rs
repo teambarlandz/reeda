@@ -1,3 +1,6 @@
+#[cfg(feature = "platform-android")]
+mod android;
+
 mod theme;
 
 slint::include_modules!();
