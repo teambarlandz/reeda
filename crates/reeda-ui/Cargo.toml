@@ -9,7 +9,12 @@ description = "Reeda Slint application frontend (Android target)."
 
 [features]
 default = ["platform-desktop"]
-platform-desktop = []   # host dev: stub platform, no Android
-platform-android = []   # cargo-apk build (android-activity + slint android backend)
+platform-desktop = ["slint/backend-winit", "slint/renderer-femtovg"]
+platform-android = ["slint/backend-android-activity-06"]
 
 [dependencies]
+reeda-core.workspace = true
+slint = "1.9"
+
+[build-dependencies]
+slint-build = "1.9"

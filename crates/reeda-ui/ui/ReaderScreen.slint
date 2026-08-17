@@ -1,0 +1,105 @@
+// ReaderScreen.slint — EPUB reader page canvas with chrome overlays.
+// See docs/UI_UX.md §4.
+
+import { Theme } from "./Theme.slint";
+
+export component ReaderScreen inherits Rectangle {
+    callback back-pressed();
+    callback toggle-chrome();
+    callback next-page();
+    callback prev-page();
+
+    in property < bool > chrome-visible: false;
+    in property < string > book-title: "";
+    in property < string > page-text: "";
+    in property < float > progress-pct: 0.0;
+    in property < string > progress-label: "0%";
+
+    background: Theme.current.background;
+
+    VerticalLayout {
+        // Top chrome (auto-hide).
+        if root.chrome-visible : Rectangle {
+            height: 56px;
+            background: Theme.current.surface;
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 16px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+
+                    Text {
+                        text: "<";
+                        font-size: 20pt;
+                        color: Theme.current.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.back-pressed(); }
+                    }
+                }
+
+                Text {
+                    text: root.book-title;
+                    font-size: 16pt;
+                    font-weight: 600;
+                    color: Theme.current.foreground;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+
+        // Page text area.
+        Rectangle {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 24px;
+
+                Text {
+                    text: root.page-text;
+                    color: Theme.current.foreground;
+                    font-size: 18pt;
+                    wrap: word-wrap;
+                    horizontal-alignment: left;
+                }
+            }
+
+            TouchArea {
+                clicked => {
+                    if (self.pressed-x < self.width * 0.25) {
+                        root.prev-page();
+                    } else if (self.pressed-x > self.width * 0.75) {
+                        root.next-page();
+                    } else {
+                        root.toggle-chrome();
+                    }
+                }
+            }
+        }
+
+        // Bottom chrome (auto-hide).
+        if root.chrome-visible : Rectangle {
+            height: 48px;
+            background: Theme.current.surface;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+
+                Text {
+                    text: root.progress-label;
+                    font-size: 12pt;
+                    color: Theme.current.foreground;
+                    opacity: 0.7;
+                }
+            }
+        }
+    }
+}

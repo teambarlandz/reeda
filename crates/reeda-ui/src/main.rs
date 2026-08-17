@@ -1,12 +1,12 @@
-//! `reeda-ui` — the Slint application frontend of Reeda.
-//!
-//! Planned modules (docs/UI_UX.md, docs/ARCHITECTURE.md §3): screens
-//! (library, reader, search, settings, highlights), theme system,
-//! gestures, i18n catalogs, and the command-bus binding to `reeda-core`.
-//!
-//! Current state: skeleton binary. The real Slint entry point (with
-//! `android-activity` and the `platform-android` feature) lands in M0.
+mod theme;
+
+slint::include_modules!();
 
 fn main() {
-    println!("Reeda UI stub — the Slint app shell arrives in milestone M0.");
+    let app = AppRoot::new().unwrap();
+
+    // Apply the default theme (Light).
+    theme::apply_theme(app.window(), reeda_core::Theme::Light);
+
+    app.run().unwrap();
 }

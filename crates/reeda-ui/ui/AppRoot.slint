@@ -1,0 +1,45 @@
+// AppRoot.slint — root component with theme provider + screen stack.
+
+import { Theme } from "./Theme.slint";
+import { LibraryScreen } from "./LibraryScreen.slint";
+import { ReaderScreen } from "./ReaderScreen.slint";
+import { ErrorDialog } from "./Dialogs.slint";
+
+export component AppRoot inherits Window {
+    title: "Reeda";
+    preferred-width: 400px;
+    preferred-height: 700px;
+
+    in-out property < bool > show-library: true;
+    in-out property < bool > show-reader: false;
+    in-out property < string > error-message: "";
+    in-out property < bool > error-open: false;
+
+    if root.show-library : LibraryScreen {
+        is-empty: true;
+
+        import-requested => {
+            root.error-message = "Import will be available in a future milestone.";
+            root.error-open = true;
+        }
+
+        book-opened => {
+            root.show-library = false;
+            root.show-reader = true;
+        }
+    }
+
+    if root.show-reader : ReaderScreen {
+        book-title: "Reader";
+
+        back-pressed => {
+            root.show-reader = false;
+            root.show-library = true;
+        }
+    }
+
+    ErrorDialog {
+        message: root.error-message;
+        open: root.error-open;
+    }
+}

@@ -1,0 +1,78 @@
+// Theme.slint — palette and typography tokens for Reeda.
+// All colors defined here; screens reference these only (no raw hex in screens).
+// See docs/UI_UX.md §1 for color rationale.
+
+export struct Palette {
+    background: brush,
+    foreground: brush,
+    accent: brush,
+    surface: brush,
+    surface_variant: brush,
+    error: brush,
+    highlight-yellow: brush,
+    highlight-green: brush,
+    highlight-blue: brush,
+    highlight-pink: brush,
+}
+
+export struct TypographyTokens {
+    font-family: string,
+    font-size: length,
+    line-height: length,
+}
+
+// ── Default palettes ────────────────────────────────────────────────
+
+export global Theme {
+    in property < Palette > light-palette: {
+        background: #F7F4EC,
+        foreground: #1A1A1A,
+        accent: #2E8B57,
+        surface: #FFFFFF,
+        surface_variant: #E8E4DC,
+        error: #D32F2F,
+        highlight-yellow: #FFE94D,
+        highlight-green: #9FE8B0,
+        highlight-blue: #A8D8F0,
+        highlight-pink: #F7B7D6,
+    };
+    in property < Palette > sepia-palette: {
+        background: #F1E8D8,
+        foreground: #3B2E1E,
+        accent: #2E8B57,
+        surface: #F8F0E4,
+        surface_variant: #E0D4C0,
+        error: #D32F2F,
+        highlight-yellow: #FFE94D,
+        highlight-green: #9FE8B0,
+        highlight-blue: #A8D8F0,
+        highlight-pink: #F7B7D6,
+    };
+    in property < Palette > dark-palette: {
+        background: #101418,
+        foreground: #D8D8D8,
+        accent: #3DAF6F,
+        surface: #1A1E24,
+        surface_variant: #252A32,
+        error: #EF5350,
+        highlight-yellow: #FFE94D,
+        highlight-green: #9FE8B0,
+        highlight-blue: #A8D8F0,
+        highlight-pink: #F7B7D6,
+    };
+
+    // Current palette — set by Rust side via property binding.
+    in-out property < Palette > current: light-palette;
+
+    // Convenience accessors.
+    in property < TypographyTokens > ui-typography: {
+        font-family: "Noto Sans",
+        font-size: 14pt,
+        line-height: 20pt,
+    };
+    in property < TypographyTokens > reading-typography: {
+        font-family: "Noto Serif",
+        font-size: 18pt,
+        line-height: 28pt,
+    };
+}

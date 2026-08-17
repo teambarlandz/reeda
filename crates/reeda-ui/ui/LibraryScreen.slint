@@ -1,0 +1,112 @@
+// LibraryScreen.slint — library grid with empty-state onboarding.
+// See docs/UI_UX.md §3.
+
+import { Theme } from "./Theme.slint";
+
+export component LibraryScreen inherits Rectangle {
+    callback import-requested();
+    callback book-opened(string);
+
+    in property < bool > is-empty: true;
+    in property < string > book-count-text: "0 books";
+
+    background: Theme.current.background;
+
+    VerticalLayout {
+        // Top bar
+        Rectangle {
+            height: 56px;
+            background: Theme.current.surface;
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                alignment: space-between;
+
+                Text {
+                    text: "Reeda";
+                    font-size: 20pt;
+                    font-weight: 700;
+                    color: Theme.current.foreground;
+                }
+            }
+        }
+
+        // Content area
+        if root.is-empty : VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            padding: 48px;
+            spacing: 24px;
+
+            Rectangle {
+                height: 120px;
+                horizontal-stretch: 0;
+
+                Text {
+                    text: "R";
+                    font-size: 64pt;
+                    font-weight: 900;
+                    color: Theme.current.accent;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            Text {
+                text: "Your library is empty";
+                font-size: 20pt;
+                font-weight: 600;
+                color: Theme.current.foreground;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Import EPUB or PDF books to get started.\nSupported formats: .epub, .pdf";
+                font-size: 14pt;
+                color: Theme.current.foreground;
+                opacity: 0.6;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+
+            Rectangle {
+                background: Theme.current.accent;
+                border-radius: 12px;
+                height: 48px;
+                horizontal-stretch: 0;
+
+                HorizontalLayout {
+                    alignment: center;
+
+                    Text {
+                        text: "Import your first book";
+                        color: white;
+                        font-size: 16pt;
+                        font-weight: 600;
+                    }
+                }
+
+                touch := TouchArea {
+                    clicked => { root.import-requested(); }
+                }
+            }
+        }
+
+        // Library grid (populated state) — placeholder for M2.
+        if !root.is-empty : Text {
+            text: root.book-count-text;
+            color: Theme.current.foreground;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            font-size: 16pt;
+            horizontal-stretch: 1;
+        }
+
+        // Bottom bar
+        Rectangle {
+            height: 48px;
+            background: Theme.current.surface;
+        }
+    }
+}

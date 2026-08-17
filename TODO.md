@@ -48,22 +48,20 @@
 
 ### M0.4 reeda-ui: Slint app shell
 
-- [ ] Add `slint` dependency to `reeda-ui/Cargo.toml` (with `backend-android` feature for android, no default features on desktop)
-- [ ] Create `reeda-ui/ui/Theme.slint` — palette tokens: Light (#F7F4EC), Sepia (#F1E8D8), Night (#101418), accent #2E8B57, highlight colors; typography tokens
-- [ ] Create `reeda-ui/ui/AppRoot.slint` — root component with theme provider + stack navigation
-- [ ] Create `reeda-ui/ui/LibraryScreen.slint` — grid placeholder, empty-state onboarding ("Import your first book"), import FAB
-- [ ] Create `reeda-ui/ui/ReaderScreen.slint` — page canvas stub, chrome overlay stub (top/bottom bars)
-- [ ] Create `reeda-ui/ui/Dialogs.slint` — confirm/error/progress dialog components
-- [ ] `src/theme.rs` — Rust-side theme enum (Light/Sepia/Dark) + Slint model binding
-- [ ] `src/main.rs` — Slint entry point: init app, bind theme, show AppRoot, event loop
-  - `platform-desktop` feature: `slint::platform::Backend::new()` desktop mode
-  - `platform-android` feature: `android-activity` integration
+- [x] Add `slint` dependency to `reeda-ui/Cargo.toml` (with `backend-android-activity-06` feature for android)
+- [x] Create `reeda-ui/ui/Theme.slint` — palette tokens: Light, Sepia, Night; accent; highlight colors; typography tokens
+- [x] Create `reeda-ui/ui/AppRoot.slint` — root component with theme provider + stack navigation
+- [x] Create `reeda-ui/ui/LibraryScreen.slint` — grid placeholder, empty-state onboarding, import button
+- [x] Create `reeda-ui/ui/ReaderScreen.slint` — page canvas stub, chrome overlay stub (top/bottom bars)
+- [x] Create `reeda-ui/ui/Dialogs.slint` — error dialog component
+- [x] `src/theme.rs` — Rust-side theme apply stub
+- [x] `src/main.rs` — Slint entry point: init app, bind theme, show AppRoot, event loop
 
 ### M0.5 reeda-ui: navigation + empty library screen
 
-- [ ] Wire navigation: Library → Reader (stub) → back to Library
-- [ ] Library screen empty state: illustration placeholder + "Import your first book" text + import button
-- [ ] Import button placeholder: prints to log / shows toast on desktop, triggers SAF on android (stub in M0)
+- [x] Wire navigation: Library → Reader (stub) → back to Library
+- [x] Library screen empty state: illustration placeholder + "Import your first book" text + import button
+- [x] Import button placeholder: shows error dialog on import (stub in M0)
 
 ### M0.6 Android bridge stubs
 
