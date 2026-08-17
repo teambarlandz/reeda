@@ -9,6 +9,11 @@ description = "Reeda app core: domain models, app state, command bus, services."
 
 [dependencies]
 serde.workspace = true
+serde_json = "1"
 thiserror.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3"

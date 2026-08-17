@@ -1,15 +1,17 @@
-//! `reeda-core` — the application core of Reeda.
-//!
-//! Owns the domain models, the application state, the command bus
-//! (UI → core) and the event stream (core → UI), plus the service layer
-//! (library, reader sessions, annotations, import pipeline) and storage.
-//!
-//! The UI crate talks **only** to this crate (see docs/ARCHITECTURE.md §4.2).
-//!
-//! Current state: skeleton. Real services land per milestone
-//! (docs/ROADMAP.md M0–M7).
+pub mod app;
+pub mod commands;
+pub mod events;
+pub mod models;
+pub mod platform;
+pub mod storage;
 
-#![deny(missing_docs)]
+pub use app::{App, StateSnapshot};
+pub use commands::Command;
+pub use events::{Event, NarrationState};
+pub use models::{
+    Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookFormat, BookId, CfiRange,
+    Chapter, ChapterId, HighlightColor, ShelfId, TapZonesLayout, Theme, Typography,
+};
 
 /// Returns the current reeda-core crate version.
 pub fn crate_version() -> &'static str {
@@ -18,9 +20,11 @@ pub fn crate_version() -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn crate_version_is_parseable_semver() {
-        let v = super::crate_version();
+        let v = crate_version();
         assert_eq!(v.split('.').count(), 3, "expected semver, got {v}");
     }
 }

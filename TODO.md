@@ -18,33 +18,33 @@
 
 ### M0.2 reeda-core: domain models, commands, events, platform trait
 
-- [ ] `models/mod.rs` — `BookId`, `ChapterId`, `AnnotationId` type aliases (newtypes over `uuid::Uuid`)
-- [ ] `models/book.rs` — `Book` struct (id, title, author, format, file_path, cover_path, sha256, language, publisher, description, published_at, imported_at, last_opened_at, last_position, progress_pct, updated_at, deleted_at)
-- [ ] `models/chapter.rs` — `Chapter` struct (id, book_id, spine_index, title, href, file_hash, char_count, updated_at)
-- [ ] `models/annotation.rs` — `Annotation` struct + `AnnotationKind` enum (`highlight | note | bookmark`), `HighlightColor` enum (yellow/green/blue/pink), `CfiRange` type
-- [ ] `models/settings.rs` — `AppSettings` struct (theme, font_family, font_size_pt, line_height, margin, justify, tts_speed, tts_pitch, tts_wakelock, tap_zones_layout, locale, first_run_done) with serde defaults
-- [ ] `models/mod.rs` — re-export all models
-- [ ] `commands.rs` — `Command` enum (Import, OpenBook, CloseBook, TurnPage, JumpTo, SetTypography, SetTheme, AddHighlight, AddNote, ToggleBookmark, Search, StartNarration, PauseNarration, StopNarration, UpdateSettings, DeleteBook)
-- [ ] `events.rs` — `Event` enum (LibraryChanged, ReaderPageChanged, ProgressSaved, NarrationState, ImportFinished, ImportFailed, SearchResults)
-- [ ] `platform/mod.rs` — `Platform` trait: `pick_file()`, `get_intent_data()`, `request_permission()`, `start_narration_service()`, `stop_narration_service()`
-- [ ] `platform/desktop.rs` — `DesktopPlatform` stub (default feature)
-- [ ] `app.rs` — `App` struct (state, platform box), `App::dispatch(Command) -> Vec<Event>`, `App::snapshot() -> StateSnapshot`
-- [ ] `app.rs` — `StateSnapshot` struct (library list, current book, current page, settings, narration state) — serializable
-- [ ] Unit tests for domain models (construction, defaults, serde round-trip)
+- [x] `models/mod.rs` — `BookId`, `ChapterId`, `AnnotationId` type aliases (newtypes over `uuid::Uuid`)
+- [x] `models/book.rs` — `Book` struct (id, title, author, format, file_path, cover_path, sha256, language, publisher, description, published_at, imported_at, last_opened_at, last_position, progress_pct, updated_at, deleted_at)
+- [x] `models/chapter.rs` — `Chapter` struct (id, book_id, spine_index, title, href, file_hash, char_count, updated_at)
+- [x] `models/annotation.rs` — `Annotation` struct + `AnnotationKind` enum (`highlight | note | bookmark`), `HighlightColor` enum (yellow/green/blue/pink), `CfiRange` type
+- [x] `models/settings.rs` — `AppSettings` struct (theme, font_family, font_size_pt, line_height, margin, justify, tts_speed, tts_pitch, tts_wakelock, tap_zones_layout, locale, first_run_done) with serde defaults
+- [x] `models/mod.rs` — re-export all models
+- [x] `commands.rs` — `Command` enum (Import, OpenBook, CloseBook, TurnPage, JumpTo, SetTypography, SetTheme, AddHighlight, AddNote, ToggleBookmark, Search, StartNarration, PauseNarration, StopNarration, UpdateSettings, DeleteBook)
+- [x] `events.rs` — `Event` enum (LibraryChanged, ReaderPageChanged, ProgressSaved, NarrationState, ImportFinished, ImportFailed, SearchResults)
+- [x] `platform/mod.rs` — `Platform` trait: `pick_file()`, `get_intent_data()`, `request_permission()`, `start_narration_service()`, `stop_narration_service()`
+- [x] `platform/desktop.rs` — `DesktopPlatform` stub (default feature)
+- [x] `app.rs` — `App` struct (state, platform box), `App::dispatch(Command) -> Vec<Event>`, `App::snapshot() -> StateSnapshot`
+- [x] `app.rs` — `StateSnapshot` struct (library list, current book, current page, settings, narration state) — serializable
+- [x] Unit tests for domain models (construction, defaults, serde round-trip)
 
 ### M0.3 reeda-core: storage layer (SQLite)
 
-- [ ] Add `rusqlite` (bundled) + `rusqlite` workspace dependency
-- [ ] `storage/mod.rs` — `Database` struct wrapping rusqlite connection (WAL, foreign_keys, busy_timeout)
-- [ ] `storage/mod.rs` — migration runner: read `migrations/` dir, apply in order, record in `schema_migrations`
-- [ ] `migrations/0001_initial.sql` — `CREATE TABLE books` (matching DATA_MODEL.md §2.1)
-- [ ] `migrations/0001_initial.sql` — `CREATE TABLE chapters` (DATA_MODEL.md §2.2)
-- [ ] `migrations/0001_initial.sql` — `CREATE TABLE annotations` (DATA_MODEL.md §2.3)
-- [ ] `migrations/0001_initial.sql` — `CREATE TABLE bookshelves` + `bookshelf_books` (DATA_MODEL.md §2.4)
-- [ ] `migrations/0001_initial.sql` — `CREATE TABLE settings` (DATA_MODEL.md §2.5)
-- [ ] `migrations/0001_initial.sql` — `CREATE TABLE schema_migrations` (DATA_MODEL.md §2.6)
-- [ ] `storage/queries.rs` — prepared statements: library_grid, continuar, annotations_for_book, upsert_book, delete_book, get/set_setting
-- [ ] Unit tests: migration 0→N on empty DB, CRUD round-trip on each table
+- [x] Add `rusqlite` (bundled) + `rusqlite` workspace dependency
+- [x] `storage/mod.rs` — `Database` struct wrapping rusqlite connection (WAL, foreign_keys, busy_timeout)
+- [x] `storage/mod.rs` — migration runner: read `migrations/` dir, apply in order, record in `schema_migrations`
+- [x] `migrations/0001_initial.sql` — `CREATE TABLE books` (matching DATA_MODEL.md §2.1)
+- [x] `migrations/0001_initial.sql` — `CREATE TABLE chapters` (DATA_MODEL.md §2.2)
+- [x] `migrations/0001_initial.sql` — `CREATE TABLE annotations` (DATA_MODEL.md §2.3)
+- [x] `migrations/0001_initial.sql` — `CREATE TABLE bookshelves` + `bookshelf_books` (DATA_MODEL.md §2.4)
+- [x] `migrations/0001_initial.sql` — `CREATE TABLE settings` (DATA_MODEL.md §2.5)
+- [x] `migrations/0001_initial.sql` — `CREATE TABLE schema_migrations` (DATA_MODEL.md §2.6)
+- [x] `storage/queries.rs` — prepared statements: library_grid, continuar, annotations_for_book, upsert_book, delete_book, get/set_setting
+- [x] Unit tests: migration 0→N on empty DB, CRUD round-trip on each table
 
 ### M0.4 reeda-ui: Slint app shell
 
@@ -74,19 +74,19 @@
 
 ### M0.7 reeda-epub / reeda-pdf / reeda-search / reeda-tts (skeleton keep)
 
-- [ ] Verify all four engine crate skeletons compile with `cargo check`
-- [ ] Confirm `reeda-tts` feature flags (`platform-desktop` / `platform-android`) gate correctly
-- [ ] No real implementation — these land in M1/M4/M5/M6 respectively
+- [x] Verify all four engine crate skeletons compile with `cargo check`
+- [x] Confirm `reeda-tts` feature flags (`platform-desktop` / `platform-android`) gate correctly
+- [x] No real implementation — these land in M1/M4/M5/M6 respectively
 
 ### M0.8 Tests
 
-- [ ] `reeda-core`: unit tests for models (serde, defaults, CfiRange construction)
-- [ ] `reeda-core`: unit tests for storage (migration, CRUD, settings get/set)
-- [ ] `reeda-core`: unit tests for App dispatch (OpenBook → state change → snapshot)
-- [ ] `reeda-ui`: verify `cargo check -p reeda-ui` on host
-- [ ] `cargo test --workspace` passes on host (CI green)
-- [ ] `cargo clippy --workspace --all-targets -- -D warnings` passes
-- [ ] `cargo fmt --check` passes
+- [x] `reeda-core`: unit tests for models (serde, defaults, CfiRange construction)
+- [x] `reeda-core`: unit tests for storage (migration, CRUD, settings get/set)
+- [x] `reeda-core`: unit tests for App dispatch (OpenBook → state change → snapshot)
+- [x] `reeda-ui`: verify `cargo check -p reeda-ui` on host
+- [x] `cargo test --workspace` passes on host (CI green)
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` passes
+- [x] `cargo fmt --check` passes
 
 ### M0.9 Documentation updates
 
