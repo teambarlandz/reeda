@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint-and-test:
+    name: fmt / clippy / test (host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: Doc build
+        run: cargo doc --workspace --no-deps
+
+  audit:
+    name: cargo audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Android debug APK build (docs/BUILD_CI.md §3). Runs on workflow_dispatch
+  # until the Slint app shell exists (M0).
+  android-apk:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        target: [aarch64-linux-android, x86_64-linux-android]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Android targets
+        run: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+      - name: Set up NDK (r27)
+        run: |
+          curl -sSfLo /tmp/ndk.zip \
+            "https://dl.google.com/android/repository/android-ndk-r27-linux.zip"
+          unzip -q /tmp/ndk.zip -d /opt/ndk
+          echo "ANDROID_NDK_HOME=/opt/ndk/android-ndk-r27" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-apk
+        run: cargo install cargo-apk cargo-ndk --locked
+      - name: Build APK
+        run: cargo apk build -p reeda-ui --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reeda-debug-${{ matrix.target }}
+          path: target/ndk/**/reeda-ui.apk

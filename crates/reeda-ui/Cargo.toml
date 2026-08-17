@@ -1,0 +1,15 @@
+[package]
+name = "reeda-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Reeda Slint application frontend (Android target)."
+
+[features]
+default = ["platform-desktop"]
+platform-desktop = []   # host dev: stub platform, no Android
+platform-android = []   # cargo-apk build (android-activity + slint android backend)
+
+[dependencies]

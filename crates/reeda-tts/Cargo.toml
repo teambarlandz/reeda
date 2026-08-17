@@ -1,0 +1,15 @@
+[package]
+name = "reeda-tts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Reeda read-aloud: narration engine + Android TextToSpeech JNI bridge (docs/TTS_SPEC.md)."
+
+[features]
+default = ["platform-desktop"]
+platform-desktop = []   # stub host platform for dev builds
+platform-android = []   # JNI bridge to android.speech.tts.TextToSpeech
+
+[dependencies]

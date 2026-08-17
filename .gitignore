@@ -1,0 +1,22 @@
+# Build artifacts
+/target
+**/*.rs.bk
+
+# Android / signing — NEVER commit
+*.jks
+*.keystore
+*.key
+local.properties
+android/**/build/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local tooling
+*.local
