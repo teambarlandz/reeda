@@ -13,8 +13,8 @@
 ### M0.1 GitHub & CI
 
 - [ ] Enable branch protection on `main`: PR-required, 1 review minimum, CI must pass
-- [ ] Create `.github/workflows/ci.yml` — host-side CI (fmt, clippy, test, doc-build)
-- [ ] Create `.github/workflows/build-apk.yml` — Android debug APK build (arm64 + x86_64)
+- [x] Create `.github/workflows/ci.yml` — host-side CI (fmt, clippy, test, doc-build)
+- [x] Create `.github/workflows/build-apk.yml` — Android debug APK build (arm64 + x86_64)
 
 ### M0.2 reeda-core: domain models, commands, events, platform trait
 
