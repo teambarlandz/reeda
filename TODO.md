@@ -54,41 +54,37 @@ buttons (M2.2) not yet in UI; CSS subset engine (M1.4) still deferred.
 **Exit criterion:** highlight a passage, kill the app, relaunch → highlight + note
 intact at correct position with different font size.
 
-**Plan (task order):**
-
-### M3.1 — Selection + intersection engine (core)
-`selection.rs` in reeda-core: `locator_of_global_block()` (global block → spine/block
-Locator), `LocatorRange` from (block, char_start, char_end), CFI anchoring via
-`cfi::Cfi::from_locator`, and `intersect_range_with_page()` — clip a CfiRange to a
-page's visible segments for rendering. Tests: intersection math, cross-block ranges,
-page-clipping, CFI round-trips.
-
-### M3.2 — Highlight rendering in reader (UI)
-`PageContent` gains `highlight_segments` (block, char_start, char_end, color, has_note).
-ReaderScreen renders per-line segments with translucent colored backgrounds + underline
-(HIGHLIGHTS_SPEC §3). Tap highlight → popover: edit color (4 swatches) / delete.
-App commands wired: AddHighlight/EditHighlight/DeleteAnnotation already exist — connect
-to UI callbacks + snapshot.
-
-### M3.3 — Notes attach + notes list screen
-`AddNote` command wired end-to-end (attach to highlight / standalone). New NotesScreen:
-per-book list of highlights+notes grouped by chapter, snippet text, color chip, date;
-tap → jump to location (HIL-06).
-
-### M3.4 — Bookmarks + bookmarks list
-Chrome ribbon toggle button; icon state derived from current page CFI (filled when page
-start CFI equals bookmark). Bookmarks list screen: tap → jump, delete. Uses existing
-`ToggleBookmark`.
-
-### M3.5 — Export highlights/notes (Markdown)
-`export_markdown(book)` in core per HIGHLIGHTS_SPEC §4 format. Android: share sheet
-(ACTION_SEND, text/plain); desktop: write `books/<id>/annotations.md` + print path.
-
-### M3.6 — Persistence wiring + position invariance + docs
-Wire annotation CRUD to SQLite in App commands (insert/soft-delete/list on open).
-Font-size change invariance test (HIL-08): same CFI → same geometry per layout (golden
-tests). Restart persistence integration test. Update TODO.md + CHANGELOG.md + README.md
-+ commit/push.
+- [~] **M3.1** reeda-epub — Selection + intersection engine (`selection.rs`):
+  - `GlobalRange` (block_start, char_start, block_end, char_end over global block
+    sequence) + `is_valid()`
+  - `to_cfi()` / `from_cfi()` — CFI anchoring via `cfi::Cfi` (round-trip, orphaned
+    CFI → None)
+  - `intersect_range_with_page()` → `Vec<ClippedSegment>` (page char/block clipping)
+  - Tests: intersection math, cross-block, page-clipping, CFI round-trips
+  - Fix `find_page_for_cfi` (reader.rs) to use global `block_index` (not spine_index)
+- [ ] **M3.2** reeda-ui — Highlight rendering in reader:
+  - `PageContent.highlight_segments` (block, char_start, char_end, color, has_note)
+  - ReaderScreen: per-line segments, translucent colored background + underline
+    (HIGHLIGHTS_SPEC §3)
+  - Tap highlight → popover: edit color (4 swatches) / delete
+  - Wire AddHighlight/EditHighlight/DeleteAnnotation commands to UI callbacks +
+    snapshot
+- [ ] **M3.3** reeda-core + reeda-ui — Notes + notes list:
+  - `AddNote` wired end-to-end (attach to highlight / standalone)
+  - NotesScreen: per-book list of highlights+notes grouped by chapter, snippet,
+    color chip, date; tap → jump (HIL-06)
+- [ ] **M3.4** reeda-ui — Bookmarks:
+  - Chrome ribbon toggle button; icon state from page-start CFI (filled when match)
+  - Bookmarks list screen: tap → jump, delete (uses `ToggleBookmark`)
+- [ ] **M3.5** reeda-core — Export highlights/notes (Markdown):
+  - `export_markdown(book)` per HIGHLIGHTS_SPEC §4 format
+  - Android share sheet (ACTION_SEND, text/plain); desktop writes
+    `books/<id>/annotations.md`
+- [ ] **M3.6** reeda-core — Persistence + invariance + docs:
+  - Wire annotation CRUD to SQLite in App commands (insert/soft-delete/list on open)
+  - HIL-08 font-size invariance golden tests (same CFI → same geometry per layout)
+  - Restart persistence integration test
+  - Update TODO.md + CHANGELOG.md + README.md + commit/push
 
 ---
 
