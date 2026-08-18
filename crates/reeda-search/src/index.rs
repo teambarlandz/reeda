@@ -19,10 +19,32 @@ use tantivy::schema::{Field, IndexRecordOption, Schema, TextOptions, Value, INDE
 use tantivy::{doc, Index, IndexReader, IndexWriter, TantivyDocument, Term};
 
 /// Schema version. Bump when the schema/analysis changes to force a rebuild.
-pub const INDEX_VERSION: u32 = 1;
+pub const INDEX_VERSION: u32 = 2;
 
 const VERSION_FILE: &str = "version.txt";
 const DEFAULT_QUERY_LIMIT: usize = 200;
+/// Tokenizer name for the English analyzer (lowercase + stopword filtering).
+pub const EN_TOKENIZER: &str = "en";
+
+/// English stopwords (SEARCH_SPEC §3, en first).
+const EN_STOPWORDS: &[&str] = &[
+    "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "from", "had", "has", "have",
+    "he", "her", "his", "i", "in", "into", "is", "it", "its", "me", "my", "not", "of", "on", "or",
+    "our", "she", "so", "that", "the", "their", "them", "then", "there", "these", "they", "this",
+    "those", "to", "was", "we", "were", "what", "when", "where", "which", "who", "will", "with",
+    "you", "your",
+];
+
+/// Build the English text analyzer: simple segmentation → lowercase → stopwords.
+pub fn en_analyzer() -> tantivy::tokenizer::TextAnalyzer {
+    use tantivy::tokenizer::{LowerCaser, SimpleTokenizer, StopWordFilter, TextAnalyzer};
+    TextAnalyzer::builder(SimpleTokenizer::default())
+        .filter(LowerCaser)
+        .filter(StopWordFilter::remove(
+            EN_STOPWORDS.iter().map(|w| w.to_string()),
+        ))
+        .build()
+}
 
 /// A single block of text queued for indexing (SEARCH_SPEC §2 document model).
 #[derive(Debug, Clone)]
@@ -116,18 +138,37 @@ fn build_schema() -> Schema {
     b.add_text_field(
         "title",
         TextOptions::default().set_stored().set_indexing_options(
-            TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqsAndPositions),
+            TextFieldIndexing::default()
+                .set_tokenizer(EN_TOKENIZER)
+                .set_index_option(IndexRecordOption::WithFreqsAndPositions),
         ),
     );
     b.add_text_field(
         "body",
         TextOptions::default().set_stored().set_indexing_options(
-            TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqsAndPositions),
+            TextFieldIndexing::default()
+                .set_tokenizer(EN_TOKENIZER)
+                .set_index_option(IndexRecordOption::WithFreqsAndPositions),
         ),
     );
     b.add_text_field("chapter_title", TextOptions::default().set_stored());
     b.add_text_field("language", TextOptions::default().set_stored());
     b.build()
+}
+
+/// Commit the writer, retrying transient IO errors (Windows file-lock races).
+fn commit_with_retry(writer: &mut IndexWriter<TantivyDocument>) -> tantivy::Result<()> {
+    for attempt in 0..3 {
+        match writer.commit() {
+            Ok(_) => return Ok(()),
+            Err(e) if attempt < 2 => {
+                std::thread::sleep(std::time::Duration::from_millis(150 * (attempt + 1)));
+                let _ = e;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(())
 }
 
 /// Owns the Tantivy index: creation, incremental updates, deletes, queries.
@@ -172,6 +213,9 @@ impl IndexManager {
         };
         let schema = index.schema();
         let fields = Fields::new(&schema);
+        // Register the English analyzer for title/body (must exist at both
+        // index and query time; open_in_dir restores names from meta.json).
+        index.tokenizers().register(EN_TOKENIZER, en_analyzer());
         let writer: IndexWriter<TantivyDocument> = index.writer(64 * 1024 * 1024)?;
         let reader = index.reader()?;
         Ok(Self {
@@ -211,7 +255,7 @@ impl IndexManager {
                 self.fields.language => block.language.clone(),
             ))?;
         }
-        self.writer.commit()?;
+        commit_with_retry(&mut self.writer)?;
         self.reader.reload()?;
         Ok(())
     }
@@ -220,7 +264,7 @@ impl IndexManager {
     pub fn delete_book(&mut self, book_id: &str) -> tantivy::Result<()> {
         self.writer
             .delete_term(Term::from_field_text(self.fields.book_id, book_id));
-        self.writer.commit()?;
+        commit_with_retry(&mut self.writer)?;
         self.reader.reload()?;
         Ok(())
     }
@@ -248,6 +292,8 @@ impl IndexManager {
 
         let mut parser =
             QueryParser::for_index(&self.index, vec![self.fields.body, self.fields.title]);
+        // AND semantics between terms (SEARCH_SPEC §5).
+        parser.set_conjunction_by_default();
         parser.set_field_boost(self.fields.title, 2.0);
         let Ok(parsed) = parser.parse_query(query_str) else {
             return Ok(SearchResult::default());
@@ -597,5 +643,50 @@ mod tests {
         mgr.index_book(&docs).unwrap();
         let res = mgr.search("common", None, 5).unwrap();
         assert_eq!(res.hits.len(), 5);
+    }
+
+    #[test]
+    fn stopword_only_query_returns_empty() {
+        let (_dir, mut mgr) = temp_index();
+        mgr.index_book(&sample_docs()).unwrap();
+        // "the" is filtered out by the analyzer → no terms → no results.
+        let res = mgr.search("the", None, 10).unwrap();
+        assert_eq!(res.total, 0);
+        let res = mgr.search("the quick", None, 10).unwrap();
+        assert_eq!(res.total, 2);
+    }
+
+    #[test]
+    fn query_is_case_insensitive() {
+        let (_dir, mut mgr) = temp_index();
+        mgr.index_book(&sample_docs()).unwrap();
+        let res = mgr.search("FOX", None, 10).unwrap();
+        assert_eq!(res.total, 2);
+        // "Brown" only appears in block 0.
+        let res = mgr.search("Brown", None, 10).unwrap();
+        assert_eq!(res.total, 1);
+        assert_eq!(res.hits[0].block_index, 0);
+    }
+
+    #[test]
+    fn multi_term_query_uses_and_semantics() {
+        let (_dir, mut mgr) = temp_index();
+        mgr.index_book(&sample_docs()).unwrap();
+        // Both terms must appear: "fox" in blocks 0+1, "gardening" in book 2.
+        let res = mgr.search("fox gardening", None, 10).unwrap();
+        assert_eq!(res.total, 0);
+        // Both in the same block.
+        let res = mgr.search("quick brown", None, 10).unwrap();
+        assert_eq!(res.total, 1);
+        assert_eq!(res.hits[0].block_index, 0);
+    }
+
+    #[test]
+    fn phrase_with_stopwords_works() {
+        let (_dir, mut mgr) = temp_index();
+        mgr.index_book(&sample_docs()).unwrap();
+        // Stopwords inside phrases are filtered; phrase still matches.
+        let res = mgr.search("\"brown fox jumps\"", None, 10).unwrap();
+        assert_eq!(res.total, 1);
     }
 }
