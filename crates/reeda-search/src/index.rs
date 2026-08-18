@@ -97,6 +97,7 @@ pub struct SearchResult {
     pub total: usize,
 }
 
+#[derive(Clone, Copy)]
 struct Fields {
     book_id: Field,
     spine_index: Field,
@@ -173,6 +174,32 @@ fn commit_with_retry(writer: &mut IndexWriter<TantivyDocument>) -> tantivy::Resu
     Ok(())
 }
 
+fn add_book_docs(
+    fields: Fields,
+    writer: &mut IndexWriter<TantivyDocument>,
+    docs: &[IndexedBlock],
+) -> tantivy::Result<()> {
+    let Some(first) = docs.first() else {
+        return Ok(());
+    };
+    let book_id = first.book_id.clone();
+    // Replace: delete any previously indexed documents for this book.
+    writer.delete_term(Term::from_field_text(fields.book_id, &book_id));
+    for block in docs {
+        writer.add_document(doc!(
+            fields.book_id => block.book_id.clone(),
+            fields.spine_index => block.spine_index as u64,
+            fields.block_index => block.block_index as u64,
+            fields.char_offset => block.char_offset as u64,
+            fields.title => block.title.clone(),
+            fields.body => block.body.clone(),
+            fields.chapter_title => block.chapter_title.clone(),
+            fields.language => block.language.clone(),
+        ))?;
+    }
+    Ok(())
+}
+
 /// Owns the Tantivy index: creation, incremental updates, deletes, queries.
 pub struct IndexManager {
     path: PathBuf,
@@ -238,27 +265,27 @@ impl IndexManager {
     ///
     /// Commits the batch, making results immediately queryable.
     pub fn index_book(&mut self, docs: &[IndexedBlock]) -> tantivy::Result<()> {
-        let Some(first) = docs.first() else {
-            return Ok(());
-        };
-        let book_id = first.book_id.clone();
-        // Replace: delete any previously indexed documents for this book.
-        self.writer
-            .delete_term(Term::from_field_text(self.fields.book_id, &book_id));
-        for block in docs {
-            self.writer.add_document(doc!(
-                self.fields.book_id => block.book_id.clone(),
-                self.fields.spine_index => block.spine_index as u64,
-                self.fields.block_index => block.block_index as u64,
-                self.fields.char_offset => block.char_offset as u64,
-                self.fields.title => block.title.clone(),
-                self.fields.body => block.body.clone(),
-                self.fields.chapter_title => block.chapter_title.clone(),
-                self.fields.language => block.language.clone(),
-            ))?;
-        }
+        add_book_docs(self.fields, &mut self.writer, docs)?;
         commit_with_retry(&mut self.writer)?;
         self.reader.reload()?;
+        Ok(())
+    }
+
+    /// Index many books in a single commit (bulk import / rebuild path).
+    ///
+    /// Empty book lists are skipped; one commit + reload covers the whole batch.
+    pub fn index_many(&mut self, books: &[Vec<IndexedBlock>]) -> tantivy::Result<()> {
+        let mut any = false;
+        for docs in books {
+            if !docs.is_empty() {
+                add_book_docs(self.fields, &mut self.writer, docs)?;
+                any = true;
+            }
+        }
+        if any {
+            commit_with_retry(&mut self.writer)?;
+            self.reader.reload()?;
+        }
         Ok(())
     }
 

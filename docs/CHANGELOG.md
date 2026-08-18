@@ -75,6 +75,30 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
     soft-delete, reload on open) with restart persistence + HIL-08 font-size
     invariance tests.
   - 131 tests across workspace (74 reeda-core, 54 reeda-epub, 3 others).
+- **M4 Full-text search**:
+  - `reeda-search` (Tantivy, ADR-009): schema (book_id, spine/block/char
+    locators, boosted title + body, stored chapter_title/language), version-stamped
+    index with auto-rebuild, `index_book`/`index_many` (replace-then-add),
+    `delete_book`, BM25 ranking with title boost 2.0, AND-by-default queries,
+    `<mark>` snippets, CFI locator on hits, per-book filter for in-book search.
+  - English analyzer: simple segmentation + lowercase + stopword filter
+    (EN_STOPWORDS); registered at index and query time (INDEX_VERSION 2).
+  - `SearchService` in reeda-core: index on import, delete on delete, query
+    across library or within the open book; wired into desktop startup
+    (`reeda_data/` next to the app).
+  - Search commands/events/snapshot (`Search`, `OpenSearchHit`,
+    `ReaderSearch*`, `ReaderSearchState`) with debounced query dispatch,
+    open-at-match via CFI jump, and a cyan transient highlight synced with the
+    reader (cleared on page turn / close / new search).
+  - UI: full-screen Library search (results grouped by book, chapter headings,
+    no-results state) and an in-reader overlay (prev/next arrows with wrap,
+    match counter "x / y", close button).
+  - M4.7 perf fixture (`reeda-search/tests/perf_fixture.rs`): deterministic
+    50-book multi-language corpus (diacritics, long book, empty book) asserting
+    the M4 exit criterion — index build < 10 s/100 books and query p95 < 1 s in
+    release (debug runs a scaled-down corpus with generous smoke bounds).
+  - 155 tests across workspace (83 reeda-core, 54 reeda-epub, 16 reeda-search,
+    2 integration/perf).
 
 ### Changed
 

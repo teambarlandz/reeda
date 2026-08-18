@@ -98,9 +98,12 @@ after restart (annotations themselves are fully persistent).
 
 ---
 
-## M4 — Full-text search (2 weeks) — _in progress_
+## M4 — Full-text search (2 weeks) — _done_
 
 **Exit criterion:** 50-book fixture library; query finds ranked results < 1 s.
+→ Met in release: `cargo test --release -p reeda-search --test perf_fixture`
+builds 52 books (80 k+ words) in ~3.4 s (~6.5 s/100 books, < 10 s budget) with
+query p95 well under 1 s.
 
 - [x] **M4.1** reeda-search — Tantivy index core (`index.rs`):
   - Schema per SEARCH_SPEC §2: `book_id` (raw term), `spine_index`/`block_index`/
@@ -140,7 +143,7 @@ after restart (annotations themselves are fully persistent).
 - [x] **M4.6** reeda-ui — In-reader search overlay:
   - Chrome search icon → overlay panel (hits list + prev/next arrows)
   - Term highlight synced with reader via transient_highlight
-- [ ] **M4.7** Performance fixtures + docs:
+- [x] **M4.7** Performance fixtures + docs:
   - Synthetic 50-book corpus fixture (multi-language, long book, diacritics,
     empty book); index-build timing sanity (< 10 s/100 books), query p95 < 1 s
     smoke test (release profile)

@@ -9,9 +9,10 @@ stack (Slint UI on the Android platform).
 
 ## Status
 
-> 🚧 **Pre-alpha — M3 highlighting & notes complete.** Highlight in 4 colors,
-> attach notes, bookmark pages, browse annotations, export to Markdown — all
-> persisted to SQLite. M4 (full-text search) is next.
+> 🚧 **Pre-alpha — M4 full-text search complete.** Search your library from the
+> Library screen (debounced, open-at-match) and within a book from the reader
+> chrome (prev/next with wrap) — Tantivy-backed BM25 ranking with English
+> analysis. M5 (PDF reader) is next.
 
 | Area | State |
 |------|-------|
@@ -22,7 +23,7 @@ stack (Slint UI on the Android platform).
 | EPUB reader core (M1) | Done |
 | Library & metadata (M2) | Done |
 | Highlighting & notes (M3) | Done |
-| Full-text search (M4) | Not started |
+| Full-text search (M4) | Done |
 | Play Store release | Not started |
 
 ## Feature map (Apple Books parity)
