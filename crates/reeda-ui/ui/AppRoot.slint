@@ -10,32 +10,60 @@ export component AppRoot inherits Window {
     preferred-width: 400px;
     preferred-height: 700px;
 
+    // ── Screen visibility ───────────────────────────────────────────
     in-out property < bool > show-library: true;
     in-out property < bool > show-reader: false;
+
+    // ── Error dialog ────────────────────────────────────────────────
     in-out property < string > error-message: "";
     in-out property < bool > error-open: false;
 
+    // ── Library properties ──────────────────────────────────────────
+    in-out property < bool > library-is-empty: true;
+    in-out property < string > library-count-text: "0 books";
+
+    // ── Reader properties (bound from Rust) ─────────────────────────
+    in-out property < string > book-title: "";
+    in-out property < string > page-text: "";
+    in-out property < bool > chrome-visible: false;
+    in-out property < float > progress-pct: 0.0;
+    in-out property < string > progress-label: "0%";
+
+    // ── Reader callbacks ────────────────────────────────────────────
+    callback next-page();
+    callback prev-page();
+    callback back-pressed();
+    callback toggle-chrome();
+    callback import-requested();
+
     if root.show-library : LibraryScreen {
-        is-empty: true;
+        is-empty: root.library-is-empty;
+        book-count-text: root.library-count-text;
 
-        import-requested => {
-            root.error-message = "Import will be available in a future milestone.";
-            root.error-open = true;
-        }
+        import-requested => { root.import-requested(); }
 
-        book-opened => {
+        book-opened(id) => {
             root.show-library = false;
             root.show-reader = true;
         }
     }
 
     if root.show-reader : ReaderScreen {
-        book-title: "Reader";
+        book-title: root.book-title;
+        page-text: root.page-text;
+        chrome-visible: root.chrome-visible;
+        progress-pct: root.progress-pct;
+        progress-label: root.progress-label;
 
         back-pressed => {
             root.show-reader = false;
             root.show-library = true;
+            root.back-pressed();
         }
+
+        next-page => { root.next-page(); }
+        prev-page => { root.prev-page(); }
+        toggle-chrome => { root.chrome-visible = !root.chrome-visible; }
     }
 
     ErrorDialog {
