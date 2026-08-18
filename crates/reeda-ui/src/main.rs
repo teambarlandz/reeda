@@ -389,6 +389,32 @@ fn main() {
         }
     });
 
+    // ── Export ───────────────────────────────────────────────────────
+    app.on_notes_export({
+        let core_cell = core_cell.clone();
+        move || {
+            let (markdown, file_path) = {
+                let core = core_cell.borrow();
+                let snap = core.snapshot();
+                let Some(book) = snap.current_book.as_ref() else {
+                    return;
+                };
+                let Some(md) = core.export_annotations_markdown(book.id) else {
+                    return;
+                };
+                (md, book.file_path.clone())
+            };
+            let dir = std::path::Path::new(&file_path)
+                .parent()
+                .unwrap_or(std::path::Path::new("books"));
+            let out_path = dir.join("annotations.md");
+            match std::fs::write(&out_path, markdown) {
+                Ok(()) => eprintln!("Exported highlights & notes to {}", out_path.display()),
+                Err(e) => eprintln!("Export failed: {e}"),
+            }
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 

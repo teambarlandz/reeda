@@ -75,6 +75,7 @@ export component AppRoot inherits Window {
     callback notes-back();
     callback notes-jump(string);
     callback notes-requested();
+    callback notes-export();
     callback note-saved(string);
     callback note-cancelled();
     callback bookmarks-requested();
@@ -168,6 +169,8 @@ export component AppRoot inherits Window {
             root.show-reader = true;
             root.notes-jump(id);
         }
+
+        export => { root.notes-export(); }
     }
 
     if root.show-bookmarks : BookmarksScreen {

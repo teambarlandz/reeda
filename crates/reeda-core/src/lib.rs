@@ -1,6 +1,7 @@
 pub mod app;
 pub mod commands;
 pub mod events;
+pub mod export;
 pub mod models;
 pub mod platform;
 pub mod reader;
@@ -10,6 +11,7 @@ pub mod store;
 pub use app::{App, StateSnapshot};
 pub use commands::Command;
 pub use events::{Event, NarrationState};
+pub use export::export_markdown;
 pub use models::{
     Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookFormat, BookId, CfiRange,
     Chapter, ChapterId, HighlightColor, ShelfId, TapZonesLayout, Theme, Typography,

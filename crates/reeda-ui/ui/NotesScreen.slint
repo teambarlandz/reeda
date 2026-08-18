@@ -16,6 +16,7 @@ export struct NotesEntry {
 export component NotesScreen inherits Rectangle {
     callback back-pressed();
     callback jump-to(string);
+    callback export();
 
     in property < string > book-title: "";
     in property < [NotesEntry] > entries: [];
@@ -56,6 +57,24 @@ export component NotesScreen inherits Rectangle {
                     font-weight: 600;
                     color: Theme.current.foreground;
                     horizontal-stretch: 1;
+                }
+
+                Rectangle {
+                    width: 56px;
+                    height: 40px;
+
+                    Text {
+                        text: "Export";
+                        font-size: 12pt;
+                        font-weight: 600;
+                        color: Theme.current.accent;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.export(); }
+                    }
                 }
             }
         }

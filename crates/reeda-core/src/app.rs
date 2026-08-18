@@ -535,6 +535,23 @@ impl App {
         }
     }
 
+    /// Export a book's highlights & notes as Markdown.
+    ///
+    /// Returns `None` if the book or its parsed document is unavailable.
+    pub fn export_annotations_markdown(&self, book_id: BookId) -> Option<String> {
+        let book = self
+            .library
+            .get(&book_id)
+            .filter(|b| b.deleted_at.is_none())?;
+        let parsed = self.parsed_docs.get(&book_id)?;
+        let annotations = self.annotations.get(&book_id).cloned().unwrap_or_default();
+        Some(crate::export::export_markdown(
+            book,
+            &parsed.document,
+            &annotations,
+        ))
+    }
+
     // ── Private helpers ──────────────────────────────────────────────
 
     fn open_book(&mut self, book_id: BookId) -> Vec<Event> {
