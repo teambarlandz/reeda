@@ -410,16 +410,23 @@ impl App {
         if let Some(book) = self.library.get_mut(&book_id) {
             book.last_opened_at = Some(chrono::Utc::now());
             self.current_book_id = Some(book_id);
-            self.current_page = 0;
+
+            // Restore saved page position.
+            let saved_page = book
+                .last_position
+                .as_ref()
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(0);
 
             // Paginate if we have the parsed document.
             if let Some(parsed) = self.parsed_docs.get(&book_id) {
                 let layout = typography_to_layout(&self.settings.typography, 400.0, 700.0);
                 let pages = reader::paginate_doc(&parsed.document, &layout);
                 self.total_pages = pages.pages.len() as u32;
+                self.current_page = saved_page.min(self.total_pages.saturating_sub(1));
                 self.reader_state = Some(ReaderState {
                     pages,
-                    current_page: 0,
+                    current_page: self.current_page,
                 });
             }
 
@@ -432,6 +439,7 @@ impl App {
     }
 
     fn close_book(&mut self) -> Vec<Event> {
+        self.save_progress();
         self.current_book_id = None;
         self.current_page = 0;
         self.total_pages = 0;
@@ -454,10 +462,37 @@ impl App {
         if let Some(ref mut rs) = self.reader_state {
             rs.current_page = self.current_page;
         }
+        // Persist progress on the book model.
+        self.save_progress();
         vec![Event::PageChanged {
             page_index: self.current_page,
             total_pages: self.total_pages,
         }]
+    }
+
+    /// Update the current book's progress_pct and last_position in-memory.
+    fn save_progress(&mut self) {
+        let book_id = self.current_book_id;
+        if let Some(book_id) = book_id {
+            let current_page = self.current_page;
+            let total_pages = self.total_pages;
+            if let Some(book) = self.library.get_mut(&book_id) {
+                book.last_position = Some(current_page.to_string());
+                book.progress_pct = if total_pages > 0 {
+                    current_page as f64 / total_pages as f64
+                } else {
+                    0.0
+                };
+                book.updated_at = chrono::Utc::now();
+            }
+        }
+    }
+
+    /// Get a mutable reference to the current book.
+    #[allow(dead_code)]
+    fn current_book_mut(&mut self) -> Option<&mut Book> {
+        let book_id = self.current_book_id?;
+        self.library.get_mut(&book_id)
     }
 
     fn jump_to(&mut self, cfi: String) -> Vec<Event> {
@@ -475,6 +510,7 @@ impl App {
                 if let Some(ref mut rs) = self.reader_state {
                     rs.current_page = page_idx;
                 }
+                self.save_progress();
                 return vec![Event::PageChanged {
                     page_index: self.current_page,
                     total_pages: self.total_pages,
@@ -1124,5 +1160,73 @@ mod tests {
 
         // File should be removed.
         assert!(!book_path.exists());
+    }
+
+    #[test]
+    fn progress_saved_after_page_turn() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+
+        let snap = app.snapshot();
+        let total = snap.total_pages;
+        if total > 1 {
+            app.dispatch(Command::TurnPage { forward: true });
+            let book = app.library.get(&book_id).unwrap();
+            assert_eq!(book.last_position.as_deref(), Some("1"));
+            assert!(book.progress_pct > 0.0);
+        }
+    }
+
+    #[test]
+    fn progress_restored_on_open() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        // Open and advance to page 1.
+        app.dispatch(Command::OpenBook { book_id });
+        let snap = app.snapshot();
+        if snap.total_pages > 1 {
+            app.dispatch(Command::TurnPage { forward: true });
+        }
+        app.dispatch(Command::CloseBook);
+
+        // Re-open: should restore page 1.
+        app.dispatch(Command::OpenBook { book_id });
+        let snap = app.snapshot();
+        if snap.total_pages > 1 {
+            assert_eq!(snap.current_page, 1);
+        }
+    }
+
+    #[test]
+    fn progress_saved_on_close() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        app.dispatch(Command::OpenBook { book_id });
+        let snap = app.snapshot();
+        if snap.total_pages > 1 {
+            app.dispatch(Command::TurnPage { forward: true });
+            app.dispatch(Command::CloseBook);
+            let book = app.library.get(&book_id).unwrap();
+            assert_eq!(book.last_position.as_deref(), Some("1"));
+            assert!(book.progress_pct > 0.0);
+        }
     }
 }
