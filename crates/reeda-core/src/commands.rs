@@ -118,6 +118,18 @@ pub enum Command {
     /// Set TTS playback speed.
     SetTtsSpeed(f32),
 
+    /// Set TTS pitch.
+    SetTtsPitch(f32),
+
+    /// Skip narration forward/backward by `delta` chapters (0 = no-op).
+    NarrationSkip {
+        /// Chapter delta (+1 next, −1 previous).
+        delta: isize,
+    },
+
+    /// Drain pending TTS host callbacks (polled periodically by the UI).
+    PollNarration,
+
     // ── Settings ─────────────────────────────────────────────────────
     /// Update application settings.
     UpdateSettings(AppSettings),

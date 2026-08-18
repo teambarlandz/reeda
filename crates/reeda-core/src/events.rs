@@ -77,11 +77,16 @@ pub enum Event {
 
     /// Word-level highlight during narration.
     WordHighlight {
+        /// Global block index of the word being read.
+        block_index: u32,
         /// Character offset of the word being read.
         char_offset: u32,
         /// Character length of the word.
         char_len: u32,
     },
+
+    /// The last narratable chapter finished (end of book).
+    NarrationFinished,
 
     // ── Errors ───────────────────────────────────────────────────────
     /// A non-fatal error occurred (shown as a toast/snackbar).

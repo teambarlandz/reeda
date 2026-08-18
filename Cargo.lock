@@ -4504,6 +4504,7 @@ dependencies = [
  "chrono",
  "reeda-epub",
  "reeda-search",
+ "reeda-tts",
  "rusqlite",
  "serde",
  "serde_json",

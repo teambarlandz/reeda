@@ -75,7 +75,10 @@ pub enum EngineEffect {
 }
 
 /// Host-side speech platform (Android TextToSpeech / desktop fake).
-pub trait TtsHost {
+///
+/// `Any` supertrait lets hosts be downcast (e.g. tests reaching the
+/// [`FakeTtsHost`] inside an `App`).
+pub trait TtsHost: std::any::Any {
     /// Enqueue `text` as the utterance `utterance_id` (QUEUE_ADD).
     fn speak(&mut self, utterance_id: u64, text: &str) -> Result<(), String>;
     /// Stop all speech (engine stop / error path).

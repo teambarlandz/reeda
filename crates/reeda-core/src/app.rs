@@ -7,7 +7,7 @@ use crate::commands::Command;
 use crate::events::{Event, NarrationState};
 use crate::models::{
     Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookId, CfiRange, Chapter,
-    LineRun, NotesEntry, SearchHitView, SearchResultsView,
+    ChapterId, LineRun, NotesEntry, SearchHitView, SearchResultsView,
 };
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
 use crate::storage::{Database, StorageResult};
@@ -134,6 +134,12 @@ pub struct App {
     transient_highlight: Option<CfiRange>,
     /// In-reader search state (current book only).
     reader_search: Option<ReaderSearchState>,
+    /// Narration engine (chunk queue + state machine, TTS_SPEC §5).
+    narration: reeda_tts::engine::NarrationEngine,
+    /// Platform speech host (FakeTtsHost on desktop; JNI bridge on Android).
+    tts_host: Box<dyn reeda_tts::engine::TtsHost>,
+    /// Spine index of the chapter currently being narrated.
+    narration_chapter: Option<u32>,
 }
 
 /// State of the in-reader search overlay.
@@ -173,6 +179,9 @@ impl App {
             last_search: None,
             transient_highlight: None,
             reader_search: None,
+            narration: reeda_tts::engine::NarrationEngine::new(1.0, 1.0),
+            tts_host: Box::new(reeda_tts::engine::FakeTtsHost::new()),
+            narration_chapter: None,
         }
     }
 
@@ -470,16 +479,11 @@ impl App {
             }
 
             // ── TTS ──────────────────────────────────────────────────
-            Command::StartNarration { .. } => {
-                // TODO: TTS engine (M5)
-                self.narration_state = NarrationState::Error;
-                vec![Event::NarrationStateChanged {
-                    state: NarrationState::Error,
-                }]
-            }
+            Command::StartNarration { chapter_id } => self.start_narration(chapter_id),
 
             Command::PauseNarration => {
-                if self.narration_state == NarrationState::Speaking {
+                if self.narration.state() == reeda_tts::engine::EngineState::Speaking {
+                    self.narration.pause(&mut *self.tts_host);
                     self.narration_state = NarrationState::Paused;
                     vec![Event::NarrationStateChanged {
                         state: NarrationState::Paused,
@@ -490,7 +494,8 @@ impl App {
             }
 
             Command::ResumeNarration => {
-                if self.narration_state == NarrationState::Paused {
+                if self.narration.state() == reeda_tts::engine::EngineState::Paused {
+                    self.narration.resume(&mut *self.tts_host);
                     self.narration_state = NarrationState::Speaking;
                     vec![Event::NarrationStateChanged {
                         state: NarrationState::Speaking,
@@ -500,15 +505,29 @@ impl App {
                 }
             }
 
-            Command::StopNarration => {
-                self.narration_state = NarrationState::Idle;
-                vec![Event::NarrationStateChanged {
-                    state: NarrationState::Idle,
-                }]
-            }
+            Command::StopNarration => self.stop_narration(),
+
+            Command::NarrationSkip { delta } => self.narration_skip(delta),
+
+            Command::PollNarration => self.poll_narration(),
 
             Command::SetTtsSpeed(speed) => {
                 self.settings.tts_speed = speed.clamp(0.5, 2.5);
+                self.narration
+                    .set_rate(&mut *self.tts_host, self.settings.tts_speed);
+                if let Some(db) = &self.db {
+                    let _ = db.save_settings(&self.settings);
+                }
+                vec![]
+            }
+
+            Command::SetTtsPitch(pitch) => {
+                self.settings.tts_pitch = pitch.clamp(0.5, 1.5);
+                self.narration
+                    .set_pitch(&mut *self.tts_host, self.settings.tts_pitch);
+                if let Some(db) = &self.db {
+                    let _ = db.save_settings(&self.settings);
+                }
                 vec![]
             }
 
@@ -721,6 +740,7 @@ impl App {
 
     fn close_book(&mut self) -> Vec<Event> {
         self.save_progress();
+        self.stop_narration();
         self.current_book_id = None;
         self.current_page = 0;
         self.total_pages = 0;
@@ -1001,6 +1021,263 @@ impl App {
         events
     }
 
+    // ── Narration (M5, TTS_SPEC §5) ─────────────────────────────────
+
+    /// Start narration from the current page's chapter (or a specific one).
+    fn start_narration(&mut self, chapter_id: Option<ChapterId>) -> Vec<Event> {
+        let Some(book_id) = self.current_book_id else {
+            return vec![Event::Error {
+                message: "no open book".to_string(),
+            }];
+        };
+        if self.parsed_docs.get(&book_id).is_none() {
+            return vec![Event::Error {
+                message: "book content not loaded".to_string(),
+            }];
+        };
+        let spine = match chapter_id {
+            Some(id) => self
+                .chapters
+                .get(&book_id)
+                .and_then(|cs| cs.iter().find(|c| c.id == id))
+                .map(|c| c.spine_index),
+            None => self.chapter_of_page(),
+        };
+        let Some(spine) = spine else {
+            return vec![];
+        };
+        self.load_narration_chapter(spine)
+    }
+
+    /// Load + start speaking the chapter at `spine` (replaces any current
+    /// narration). Returns state-change events.
+    fn load_narration_chapter(&mut self, spine: u32) -> Vec<Event> {
+        let Some(book_id) = self.current_book_id else {
+            return vec![];
+        };
+        let chunks = match self.parsed_docs.get(&book_id) {
+            Some(pd) => reeda_tts::chunk::Chunker::new().chunks_for_chapter(&pd.document, spine),
+            None => return vec![],
+        };
+        if chunks.is_empty() {
+            self.narration_chapter = None;
+            self.narration_state = NarrationState::Idle;
+            return vec![Event::Error {
+                message: "chapter has no narratable text".to_string(),
+            }];
+        }
+        self.narration.load_chunks(chunks);
+        self.narration_chapter = Some(spine);
+        self.narration
+            .set_rate(&mut *self.tts_host, self.settings.tts_speed);
+        self.narration
+            .set_pitch(&mut *self.tts_host, self.settings.tts_pitch);
+        match self.narration.start(&mut *self.tts_host) {
+            Ok(()) => {
+                self.narration_state = NarrationState::Speaking;
+                vec![Event::NarrationStateChanged {
+                    state: NarrationState::Speaking,
+                }]
+            }
+            Err(msg) => {
+                self.narration_state = NarrationState::Error;
+                vec![
+                    Event::NarrationStateChanged {
+                        state: NarrationState::Error,
+                    },
+                    Event::Error { message: msg },
+                ]
+            }
+        }
+    }
+
+    /// Stop narration and clear its transient highlight.
+    fn stop_narration(&mut self) -> Vec<Event> {
+        self.narration.stop(&mut *self.tts_host);
+        self.narration_chapter = None;
+        self.transient_highlight = None;
+        if self.narration_state == NarrationState::Idle {
+            return vec![];
+        }
+        self.narration_state = NarrationState::Idle;
+        vec![Event::NarrationStateChanged {
+            state: NarrationState::Idle,
+        }]
+    }
+
+    /// Skip narration by `delta` chapters (wraps), reloading from there.
+    fn narration_skip(&mut self, delta: isize) -> Vec<Event> {
+        if delta == 0 {
+            return vec![];
+        }
+        let Some(spine) = self.narration_chapter else {
+            return vec![];
+        };
+        let Some(book_id) = self.current_book_id else {
+            return vec![];
+        };
+        let count = self
+            .parsed_docs
+            .get(&book_id)
+            .map(|pd| pd.document.chapters.len() as isize)
+            .unwrap_or(0);
+        if count == 0 {
+            return vec![];
+        }
+        let next = ((spine as isize + delta).rem_euclid(count)) as u32;
+        if next == spine {
+            return vec![];
+        }
+        self.load_narration_chapter(next)
+    }
+
+    /// Drain TTS host callbacks → highlight / page-sync / chapter-advance.
+    fn poll_narration(&mut self) -> Vec<Event> {
+        let effects = self.narration.poll(&mut *self.tts_host);
+        let mut events = Vec::new();
+        for effect in effects {
+            match effect {
+                reeda_tts::engine::EngineEffect::WordHighlight {
+                    block_index,
+                    char_start,
+                    char_end,
+                } => {
+                    self.set_transient_from_offsets(block_index, char_start, char_end);
+                    events.push(Event::WordHighlight {
+                        block_index,
+                        char_offset: char_start,
+                        char_len: char_end.saturating_sub(char_start),
+                    });
+                    events.extend(self.narration_sync_page(block_index));
+                }
+                reeda_tts::engine::EngineEffect::Finished => {
+                    events.extend(self.narration_advance_chapter());
+                }
+                reeda_tts::engine::EngineEffect::Error { message } => {
+                    self.narration_state = NarrationState::Error;
+                    events.push(Event::NarrationStateChanged {
+                        state: NarrationState::Error,
+                    });
+                    events.push(Event::Error { message });
+                }
+            }
+        }
+        events
+    }
+
+    /// After a chapter finishes: advance to the next, or end narration.
+    fn narration_advance_chapter(&mut self) -> Vec<Event> {
+        let Some(spine) = self.narration_chapter else {
+            return vec![];
+        };
+        let Some(book_id) = self.current_book_id else {
+            return vec![];
+        };
+        let (chapters_len, first_block) = self
+            .parsed_docs
+            .get(&book_id)
+            .map(|pd| {
+                let mut first_block: u32 = 0;
+                for ch in pd.document.chapters.iter().take(spine as usize + 1) {
+                    first_block += ch.blocks.len() as u32;
+                }
+                (pd.document.chapters.len(), first_block)
+            })
+            .unwrap_or((0, 0));
+        let next = spine + 1;
+        if (next as usize) < chapters_len {
+            let mut events = self.load_narration_chapter(next);
+            // Jump the reader to the next chapter's first block page.
+            events.extend(self.narration_sync_page(first_block));
+            events
+        } else {
+            self.narration_chapter = None;
+            self.transient_highlight = None;
+            self.narration_state = NarrationState::Idle;
+            vec![
+                Event::NarrationFinished,
+                Event::NarrationStateChanged {
+                    state: NarrationState::Idle,
+                },
+            ]
+        }
+    }
+
+    /// Advance the reader page to the one containing `block_index` (without
+    /// clearing the transient highlight).
+    fn narration_sync_page(&mut self, block_index: u32) -> Vec<Event> {
+        let Some(book_id) = self.current_book_id else {
+            return vec![];
+        };
+        let spine_len = self
+            .parsed_docs
+            .get(&book_id)
+            .map(|pd| pd.spine.len() as u32)
+            .unwrap_or(0);
+        let cfi = GlobalRange::new(block_index as usize, 0, block_index as usize, 0).to_cfi();
+        let Some(rs) = &self.reader_state else {
+            return vec![];
+        };
+        let Some(page_idx) = reader::find_page_for_cfi(&rs.pages, &cfi.start.0, spine_len) else {
+            return vec![];
+        };
+        if page_idx == self.current_page {
+            return vec![];
+        }
+        self.current_page = page_idx;
+        if let Some(ref mut rs) = self.reader_state {
+            rs.current_page = page_idx;
+        }
+        self.save_progress();
+        vec![Event::PageChanged {
+            page_index: page_idx,
+            total_pages: self.total_pages,
+        }]
+    }
+
+    /// Spine index of the chapter on the current page.
+    fn chapter_of_page(&self) -> Option<u32> {
+        let book_id = self.current_book_id?;
+        let parsed = self.parsed_docs.get(&book_id)?;
+        let rs = self.reader_state.as_ref()?;
+        let page = rs.pages.pages.get(rs.current_page as usize)?;
+        parsed
+            .document
+            .block_at(page.first_block)
+            .map(|(chapter, _, _)| chapter.spine_index)
+    }
+
+    /// Highlight a (block, char range) as a transient narration highlight.
+    fn set_transient_from_offsets(&mut self, block_index: u32, char_start: u32, char_end: u32) {
+        let Some(book_id) = self.current_book_id else {
+            return;
+        };
+        let Some(pd) = self.parsed_docs.get(&book_id) else {
+            return;
+        };
+        let Some(text) = pd.document.block_text(block_index as usize) else {
+            return;
+        };
+        let start = (char_start as usize).min(text.len());
+        let end = (char_end as usize).min(text.len()).max(start);
+        let range =
+            GlobalRange::new(block_index as usize, start, block_index as usize, end).to_cfi();
+        self.transient_highlight = Some(CfiRange {
+            start: range.start.0,
+            end: range.end.0,
+        });
+    }
+
+    /// Replace the TTS host (test access; default is the fake).
+    pub(crate) fn set_tts_host(&mut self, host: Box<dyn reeda_tts::engine::TtsHost>) {
+        self.tts_host = host;
+    }
+
+    /// Mutable reference to the TTS host (test access).
+    pub(crate) fn tts_host_mut(&mut self) -> &mut dyn reeda_tts::engine::TtsHost {
+        &mut *self.tts_host
+    }
+
     pub(crate) fn delete_book(&mut self, book_id: BookId) -> Vec<Event> {
         if let Some(book) = self.library.get_mut(&book_id) {
             book.deleted_at = Some(chrono::Utc::now());
@@ -1257,6 +1534,13 @@ pub(crate) mod tests {
         )
     }
 
+    /// Downcast the App's TTS host to the fake for event injection.
+    fn fake_host(app: &mut App) -> &mut reeda_tts::engine::FakeTtsHost {
+        (app.tts_host.as_mut() as &mut dyn std::any::Any)
+            .downcast_mut::<reeda_tts::engine::FakeTtsHost>()
+            .expect("fake tts host installed")
+    }
+
     #[test]
     fn open_book_not_found_returns_error() {
         let mut app = App::new();
@@ -1484,11 +1768,165 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn narration_start_returns_error_not_implemented() {
+    fn narration_start_without_book_returns_error() {
         let mut app = App::new();
         let events = app.dispatch(Command::StartNarration { chapter_id: None });
-        assert_eq!(events.len(), 1);
-        assert!(matches!(&events[0], Event::NarrationStateChanged { .. }));
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::Error { message } if message.contains("open book"))));
+        assert_eq!(app.snapshot().narration_state, NarrationState::Idle);
+    }
+
+    #[test]
+    fn narration_speaks_chunks_with_word_highlights() {
+        use reeda_tts::engine::HostEvent;
+        let mut app = App::new();
+        app.set_tts_host(Box::new(reeda_tts::engine::FakeTtsHost::new()));
+        app.import_from_bytes(make_test_epub_bytes(), "test.epub".into());
+        let book_id = app.snapshot().library[0].id;
+        app.dispatch(Command::OpenBook { book_id });
+
+        let events = app.dispatch(Command::StartNarration { chapter_id: None });
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::NarrationStateChanged {
+                state: NarrationState::Speaking
+            }
+        )));
+        let first_utterance = fake_host(&mut app).spoken()[0].0;
+        assert!(
+            !fake_host(&mut app).spoken().is_empty(),
+            "expected utterances"
+        );
+
+        // Word range callback → transient highlight + WordHighlight event.
+        fake_host(&mut app).push_event(HostEvent::Range {
+            utterance_id: first_utterance,
+            start: 0,
+            end: 4,
+        });
+        let events = app.dispatch(Command::PollNarration);
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::WordHighlight { char_len: 4, .. })));
+        assert!(app.snapshot().transient_highlight.is_some());
+    }
+
+    #[test]
+    fn narration_advances_to_next_chapter_and_finishes() {
+        use reeda_tts::engine::HostEvent;
+        let mut app = App::new();
+        app.set_tts_host(Box::new(reeda_tts::engine::FakeTtsHost::new()));
+        app.import_from_bytes(make_test_epub_bytes(), "test.epub".into());
+        let book_id = app.snapshot().library[0].id;
+        app.dispatch(Command::OpenBook { book_id });
+
+        app.dispatch(Command::StartNarration { chapter_id: None });
+        // Drain chapter 1 fully: keep feeding Done events for every utterance
+        // spoken so far until the engine advances to the next chapter.
+        let mut advanced = false;
+        for _ in 0..20 {
+            let ids: Vec<u64> = fake_host(&mut app)
+                .spoken()
+                .iter()
+                .map(|(id, _)| *id)
+                .collect();
+            for id in ids {
+                fake_host(&mut app).push_event(HostEvent::Done { utterance_id: id });
+            }
+            let events = app.dispatch(Command::PollNarration);
+            if events.iter().any(|e| {
+                matches!(
+                    e,
+                    Event::NarrationStateChanged {
+                        state: NarrationState::Speaking
+                    }
+                )
+            }) {
+                advanced = true;
+                break;
+            }
+        }
+        assert!(advanced, "should advance to next chapter");
+        let last = fake_host(&mut app).spoken().last().unwrap().1.clone();
+        assert_eq!(last, "More content here.");
+    }
+
+    #[test]
+    fn narration_skip_changes_chapter() {
+        let mut app = App::new();
+        app.set_tts_host(Box::new(reeda_tts::engine::FakeTtsHost::new()));
+        app.import_from_bytes(make_test_epub_bytes(), "test.epub".into());
+        let book_id = app.snapshot().library[0].id;
+        app.dispatch(Command::OpenBook { book_id });
+        app.dispatch(Command::StartNarration { chapter_id: None });
+        let before_last = fake_host(&mut app).spoken().last().unwrap().1.clone();
+
+        let events = app.dispatch(Command::NarrationSkip { delta: 1 });
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::NarrationStateChanged {
+                state: NarrationState::Speaking
+            }
+        )));
+        let last = fake_host(&mut app).spoken().last().unwrap().1.clone();
+        assert_ne!(last, before_last, "should narrate next chapter");
+        assert_eq!(last, "More content here.");
+    }
+
+    #[test]
+    fn narration_stop_and_close_clear_state() {
+        let mut app = App::new();
+        app.set_tts_host(Box::new(reeda_tts::engine::FakeTtsHost::new()));
+        app.import_from_bytes(make_test_epub_bytes(), "test.epub".into());
+        let book_id = app.snapshot().library[0].id;
+        app.dispatch(Command::OpenBook { book_id });
+        app.dispatch(Command::StartNarration { chapter_id: None });
+        assert_eq!(app.snapshot().narration_state, NarrationState::Speaking);
+
+        let events = app.dispatch(Command::PauseNarration);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::NarrationStateChanged {
+                state: NarrationState::Paused
+            }
+        )));
+        let events = app.dispatch(Command::ResumeNarration);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::NarrationStateChanged {
+                state: NarrationState::Speaking
+            }
+        )));
+
+        let events = app.dispatch(Command::StopNarration);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            Event::NarrationStateChanged {
+                state: NarrationState::Idle
+            }
+        )));
+        assert_eq!(app.snapshot().narration_state, NarrationState::Idle);
+        assert!(fake_host(&mut app).stop_count() >= 1);
+
+        // Closing the book stops narration too.
+        app.dispatch(Command::StartNarration { chapter_id: None });
+        app.dispatch(Command::CloseBook);
+        assert_eq!(app.snapshot().narration_state, NarrationState::Idle);
+    }
+
+    #[test]
+    fn narration_tts_speed_pitch_propagate() {
+        let mut app = App::new();
+        app.set_tts_host(Box::new(reeda_tts::engine::FakeTtsHost::new()));
+        app.dispatch(Command::SetTtsSpeed(2.0));
+        app.dispatch(Command::SetTtsPitch(1.25));
+        assert_eq!(fake_host(&mut app).rate(), 2.0);
+        assert_eq!(fake_host(&mut app).pitch(), 1.25);
+        assert_eq!(app.snapshot().settings.tts_speed, 2.0);
+        assert_eq!(app.snapshot().settings.tts_pitch, 1.25);
+        app.dispatch(Command::SetTtsSpeed(99.0));
+        assert_eq!(fake_host(&mut app).rate(), 2.5, "clamped");
     }
 
     #[test]
