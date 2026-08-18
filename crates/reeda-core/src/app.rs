@@ -1268,12 +1268,14 @@ impl App {
         });
     }
 
-    /// Replace the TTS host (test access; default is the fake).
+    /// Replace the TTS host (the Android bridge installs its JNI host here).
+    #[allow(dead_code)] // used by the Android bridge (M5.5) and tests
     pub(crate) fn set_tts_host(&mut self, host: Box<dyn reeda_tts::engine::TtsHost>) {
         self.tts_host = host;
     }
 
     /// Mutable reference to the TTS host (test access).
+    #[cfg(test)]
     pub(crate) fn tts_host_mut(&mut self) -> &mut dyn reeda_tts::engine::TtsHost {
         &mut *self.tts_host
     }
