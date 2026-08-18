@@ -10,7 +10,7 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 - Project scaffolding: Cargo workspace with `reeda-core`, `reeda-epub`,
   `reeda-pdf`, `reeda-search`, `reeda-tts`, `reeda-ui` crates.
-- Full documentation set (see [TODO.md](TODO.md)): PRD, architecture,
+- Full documentation set (see [TODO.md](../TODO.md)): PRD, architecture,
   roadmap, technical design, ADRs, feature specs (EPUB, PDF, TTS,
   highlights, search), data model, platform/build/CI/testing/performance/
   accessibility/security/localization/release guides.

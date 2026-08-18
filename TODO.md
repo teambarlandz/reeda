@@ -12,7 +12,7 @@
 
 ### M0.1 GitHub & CI
 
-- [ ] Enable branch protection on `main`: PR-required, 1 review minimum, CI must pass
+- [x] Enable branch protection on `main`: PR-required, 1 review minimum, CI must pass
 - [x] Create `.github/workflows/ci.yml` — host-side CI (fmt, clippy, test, doc-build)
 - [x] Create `.github/workflows/build-apk.yml` — Android debug APK build (arm64 + x86_64)
 
