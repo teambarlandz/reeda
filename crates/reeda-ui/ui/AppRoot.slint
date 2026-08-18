@@ -1,9 +1,11 @@
 // AppRoot.slint — root component with theme provider + screen stack.
 
+export { Theme } from "./Theme.slint";
 import { Theme } from "./Theme.slint";
 import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
 import { ReaderScreen } from "./ReaderScreen.slint";
+import { SettingsScreen } from "./SettingsScreen.slint";
 import { ErrorDialog, MetadataDialog } from "./Dialogs.slint";
 
 export component AppRoot inherits Window {
@@ -14,6 +16,7 @@ export component AppRoot inherits Window {
     // ── Screen visibility ───────────────────────────────────────────
     in-out property < bool > show-library: true;
     in-out property < bool > show-reader: false;
+    in-out property < bool > show-settings: false;
 
     // ── Error dialog ────────────────────────────────────────────────
     in-out property < string > error-message: "";
@@ -29,6 +32,11 @@ export component AppRoot inherits Window {
     in-out property < string > metadata-title: "";
     in-out property < string > metadata-author: "";
     in-out property < string > metadata-book-id: "";
+
+    // ── Settings ────────────────────────────────────────────────────
+    in-out property < int > settings-theme-index: 0;
+    in-out property < int > settings-font-size: 18;
+    in-out property < int > settings-line-height: 15;
 
     // ── Reader properties (bound from Rust) ─────────────────────────
     in-out property < string > book-title: "";
@@ -46,6 +54,10 @@ export component AppRoot inherits Window {
     callback metadata-requested(string);
     callback metadata-saved(string, string);
     callback metadata-cancelled();
+    callback settings-back();
+    callback theme-selected(int);
+    callback font-size-changed(int);
+    callback line-height-changed(int);
 
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
@@ -62,6 +74,11 @@ export component AppRoot inherits Window {
         edit-requested(id) => {
             root.metadata-book-id = id;
             root.metadata-requested(id);
+        }
+
+        settings-requested => {
+            root.show-library = false;
+            root.show-settings = true;
         }
     }
 
@@ -81,6 +98,22 @@ export component AppRoot inherits Window {
         next-page => { root.next-page(); }
         prev-page => { root.prev-page(); }
         toggle-chrome => { root.chrome-visible = !root.chrome-visible; }
+    }
+
+    if root.show-settings : SettingsScreen {
+        theme-index: root.settings-theme-index;
+        font-size: root.settings-font-size;
+        line-height: root.settings-line-height;
+
+        back-pressed => {
+            root.show-settings = false;
+            root.show-library = true;
+            root.settings-back();
+        }
+
+        theme-selected(i) => { root.theme-selected(i); }
+        font-size-changed(d) => { root.font-size-changed(d); }
+        line-height-changed(d) => { root.line-height-changed(d); }
     }
 
     ErrorDialog {

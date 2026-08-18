@@ -1,0 +1,271 @@
+// SettingsScreen.slint — app settings: theme, typography.
+
+import { Theme } from "./Theme.slint";
+
+export component SettingsScreen inherits Rectangle {
+    callback back-pressed();
+    callback theme-selected(int);
+    callback font-size-changed(int);
+    callback line-height-changed(int);
+
+    in property < int > theme-index: 0;
+    in property < int > font-size: 18;
+    in property < int > line-height: 15;
+
+    background: Theme.current.background;
+
+    VerticalLayout {
+        // Top bar
+        Rectangle {
+            height: 56px;
+            background: Theme.current.surface;
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 16px;
+                alignment: space-between;
+
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+                    horizontal-stretch: 0;
+
+                    Text {
+                        text: "←";
+                        font-size: 18pt;
+                        color: Theme.current.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.back-pressed(); }
+                    }
+                }
+
+                Text {
+                    text: "Settings";
+                    font-size: 18pt;
+                    font-weight: 700;
+                    color: Theme.current.foreground;
+                    vertical-alignment: center;
+                }
+
+                Rectangle {
+                    width: 40px;
+                    horizontal-stretch: 0;
+                }
+            }
+        }
+
+        Flickable {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 24px;
+
+                // ── Theme ────────────────────────────────────────────
+                Text {
+                    text: "Theme";
+                    font-size: 14pt;
+                    font-weight: 600;
+                    color: Theme.current.foreground;
+                }
+
+                HorizontalLayout {
+                    spacing: 12px;
+
+                    theme-light := Rectangle {
+                        height: 64px;
+                        horizontal-stretch: 1;
+                        background: root.theme-index == 0 ? Theme.current.accent : Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "Light";
+                            color: root.theme-index == 0 ? white : Theme.current.foreground;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.theme-selected(0); }
+                        }
+                    }
+
+                    theme-sepia := Rectangle {
+                        height: 64px;
+                        horizontal-stretch: 1;
+                        background: root.theme-index == 1 ? Theme.current.accent : Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "Sepia";
+                            color: root.theme-index == 1 ? white : Theme.current.foreground;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.theme-selected(1); }
+                        }
+                    }
+
+                    theme-dark := Rectangle {
+                        height: 64px;
+                        horizontal-stretch: 1;
+                        background: root.theme-index == 2 ? Theme.current.accent : Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "Dark";
+                            color: root.theme-index == 2 ? white : Theme.current.foreground;
+                            font-weight: 600;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.theme-selected(2); }
+                        }
+                    }
+                }
+
+                // ── Font size ────────────────────────────────────────
+                Text {
+                    text: "Font size";
+                    font-size: 14pt;
+                    font-weight: 600;
+                    color: Theme.current.foreground;
+                }
+
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    Text {
+                        text: "A";
+                        font-size: 12pt;
+                        color: Theme.current.foreground;
+                        opacity: 0.6;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "A";
+                        font-size: 24pt;
+                        font-weight: 700;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: center;
+
+                    Rectangle {
+                        width: 48px;
+                        height: 40px;
+                        horizontal-stretch: 0;
+                        background: Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "−";
+                            font-size: 20pt;
+                            color: Theme.current.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.font-size-changed(-1); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 48px;
+                        height: 40px;
+                        horizontal-stretch: 0;
+                        background: Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "+";
+                            font-size: 20pt;
+                            color: Theme.current.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.font-size-changed(1); }
+                        }
+                    }
+                }
+
+                // ── Line height ──────────────────────────────────────
+                Text {
+                    text: "Line height";
+                    font-size: 14pt;
+                    font-weight: 600;
+                    color: Theme.current.foreground;
+                }
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: center;
+
+                    Rectangle {
+                        width: 48px;
+                        height: 40px;
+                        horizontal-stretch: 0;
+                        background: Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "−";
+                            font-size: 20pt;
+                            color: Theme.current.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.line-height-changed(-1); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 48px;
+                        height: 40px;
+                        horizontal-stretch: 0;
+                        background: Theme.current.surface_variant;
+                        border-radius: 8px;
+
+                        Text {
+                            text: "+";
+                            font-size: 20pt;
+                            color: Theme.current.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.line-height-changed(1); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom bar
+        Rectangle {
+            height: 48px;
+            background: Theme.current.surface;
+        }
+    }
+}

@@ -348,6 +348,11 @@ impl App {
         }
     }
 
+    /// Return the current application settings.
+    pub fn settings(&self) -> AppSettings {
+        self.settings.clone()
+    }
+
     /// Return a snapshot of the current application state.
     pub fn snapshot(&self) -> StateSnapshot {
         let current_book = self

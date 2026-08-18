@@ -124,8 +124,79 @@ fn main() {
         }
     });
 
+    // ── Settings callbacks ──────────────────────────────────────────
+    app.on_settings_back({
+        let weak = weak.clone();
+        move || {
+            let app = weak.unwrap();
+            app.set_show_settings(false);
+            app.set_show_library(true);
+        }
+    });
+
+    app.on_theme_selected({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |index: i32| {
+            let theme = match index {
+                0 => reeda_core::Theme::Light,
+                1 => reeda_core::Theme::Sepia,
+                _ => reeda_core::Theme::Dark,
+            };
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::SetTheme(theme));
+            }
+            let app = weak.unwrap();
+            theme::apply_theme(&app, theme);
+            app.set_settings_theme_index(index);
+        }
+    });
+
+    app.on_font_size_changed({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |delta: i32| {
+            let app = weak.unwrap();
+            let current = app.get_settings_font_size();
+            let new_size = (current + delta).clamp(12, 32);
+            if new_size != current {
+                {
+                    let mut core = core_cell.borrow_mut();
+                    let mut settings = core.settings();
+                    settings.typography.font_size_pt = new_size as f32;
+                    core.dispatch(reeda_core::Command::UpdateSettings(settings));
+                }
+                app.set_settings_font_size(new_size);
+                let snap = core_cell.borrow().snapshot();
+                update_ui(&app, &snap);
+            }
+        }
+    });
+
+    app.on_line_height_changed({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |delta: i32| {
+            let app = weak.unwrap();
+            let current = app.get_settings_line_height();
+            let new_value = (current + delta).clamp(10, 30);
+            if new_value != current {
+                {
+                    let mut core = core_cell.borrow_mut();
+                    let mut settings = core.settings();
+                    settings.typography.line_height = new_value as f32 / 10.0;
+                    core.dispatch(reeda_core::Command::UpdateSettings(settings));
+                }
+                app.set_settings_line_height(new_value);
+                let snap = core_cell.borrow().snapshot();
+                update_ui(&app, &snap);
+            }
+        }
+    });
+
     // Apply the default theme.
-    theme::apply_theme(app.window(), reeda_core::Theme::Light);
+    theme::apply_theme(&app, reeda_core::Theme::Light);
 
     app.run().unwrap();
 }
@@ -167,4 +238,14 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         }
     }).collect();
     app.set_library_books(slint::ModelRc::from(books_model.as_slice()));
+
+    // Settings state.
+    let theme_index = match snap.settings.theme {
+        reeda_core::Theme::Light => 0,
+        reeda_core::Theme::Sepia => 1,
+        reeda_core::Theme::Dark => 2,
+    };
+    app.set_settings_theme_index(theme_index);
+    app.set_settings_font_size(snap.settings.typography.font_size_pt as i32);
+    app.set_settings_line_height((snap.settings.typography.line_height * 10.0) as i32);
 }
