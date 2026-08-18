@@ -41,6 +41,21 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
   - `main.rs` wires Slint callbacks (next/prev/back) to `App::dispatch` via `Rc<RefCell<App>>`.
   - `update_ui()` pushes `StateSnapshot` into Slint properties after each dispatch.
   - 84 tests across workspace (40 reeda-core, 40 reeda-epub, 4 others).
+- **M2 Library & metadata**:
+  - `BookStore` file storage: SHA-256 dedup, atomic writes, book/cover file layout
+    under `books/<id>/` and `covers/<id>`, file cleanup on delete.
+  - Import pipeline: copies EPUB to storage, extracts metadata (language, publisher,
+    description, published date), extracts and stores cover images.
+  - Library grid UI: `BookCard` component (cover placeholder, title, author, progress
+    bar), scrollable list, book count, edit button per card.
+  - Reading progress: saved on page turn/close, restored on open; persisted to SQLite.
+  - Metadata editing: `EditMetadata` command + `MetadataDialog` (title/author override),
+    persisted to SQLite.
+  - Settings screen v1: `SettingsScreen.slint` with theme picker (Light/Sepia/Dark),
+    font size and line height controls; theme applied live via Slint global.
+  - SQLite persistence wiring: books, chapters, reading position, metadata, settings
+    saved on mutation; `load_books()`/`load_settings_from_db()` restore at startup.
+  - 103 tests across workspace (58 reeda-core, 42 reeda-epub, 3 others).
 
 ### Changed
 

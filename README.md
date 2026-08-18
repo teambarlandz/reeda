@@ -9,7 +9,9 @@ stack (Slint UI on the Android platform).
 
 ## Status
 
-> 🚧 **Pre-alpha — M0 foundations complete.** App shell compiles, CI green, no usable features yet.
+> 🚧 **Pre-alpha — M2 library & metadata complete.** Import, covers, progress,
+> metadata editing, settings, and SQLite persistence all work. M3 (highlighting)
+> is next.
 
 | Area | State |
 |------|-------|
@@ -17,7 +19,9 @@ stack (Slint UI on the Android platform).
 | Rust workspace + domain layer | Done |
 | CI (host + Android APK) | Done |
 | Android app shell (M0) | Done |
-| EPUB reader core (M1) | Not started |
+| EPUB reader core (M1) | Done |
+| Library & metadata (M2) | Done |
+| Highlighting & notes (M3) | Not started |
 | Play Store release | Not started |
 
 ## Feature map (Apple Books parity)

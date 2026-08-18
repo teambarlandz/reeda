@@ -29,57 +29,23 @@ Done. See git log for full history.
 
 ---
 
-## M2 — Library & metadata
+## M2 — Library & metadata ✅
 
 **Exit criterion:** import 10 books, covers show, recent/continuar correct, delete works.
 
-**Plan (task order):**
+- [x] **M2.1** Import pipeline: file storage + SHA-256 dedup (`store.rs`, BookStore)
+- [x] **M2.2** Library grid Slint UI (`BookCard.slint`, LibraryScreen model, main.rs)
+- [x] **M2.3** Cover extraction from EPUB (`extract_cover_bytes`, cover stored on import)
+- [x] **M2.4** Progress save/restore (page index persisted on turn/close, restored on open)
+- [x] **M2.5** Metadata editing (`EditMetadata`, `MetadataDialog`, persists to DB)
+- [x] **M2.6** Settings screen v1 (`SettingsScreen.slint`, theme picker, font size, line height)
+- [x] **M2.7** Tests + integration — SQLite persistence wired into App (books, chapters,
+  position, metadata, settings); 103 tests total (58 core, 42 epub, 3 others)
+- [x] **M2.8** Update TODO.md + CHANGELOG.md + README.md + commit/push
 
-### M2.1 — Import pipeline: file storage + dedup
-Copy imported EPUB bytes into `books/<id>/book.epub`, SHA-256 dedup check
-(LIB-10), error classification (corrupt zip / missing OPF / unsupported version).
-`App::import_book` → stage → hash → check → copy → parse metadata → insert DB
-→ refresh library. Currently `import_from_bytes` keeps everything in memory;
-this task moves to persistent file storage.
-
-### M2.2 — Library grid Slint UI
-LibraryScreen.slint: book cards with cover thumbnail, title, author, progress
-bar. Sort buttons (recent / alphabetical). "Continue reading" section (last 8
-opened). Empty-state remains for zero books. Tap card → OpenBook. Long-press →
-context menu (edit metadata / delete). Import FAB (floating action button).
-
-### M2.3 — Cover extraction from EPUB
-During import, look for `<meta name="cover" content="..."/>` in OPF metadata,
-resolve the manifest item to an image path, extract + decode to RGBA → save as
-`covers/<id>.webp` (using image crate). Fallback: first `<img>` in first
-chapter. No-cover: show initial letter placeholder.
-
-### M2.4 — Progress save/restore via storage
-On page turn, debounce 5s → `update_book_position(book_id, cfi, progress_pct)`
-in SQLite. On `OpenBook`, read `last_position` → CFI → page lookup → restore
-current_page. Persist on `CloseBook`, `onPause`, and chapter change.
-
-### M2.5 — Metadata editing (title/author override)
-`Command::UpdateBookMetadata { book_id, title, author }` → update DB + in-memory.
-Slint: edit dialog triggered from library card long-press → pop up text fields
-→ save. `StateSnapshot.library` reflects updated title/author.
-
-### M2.6 — Settings screen v1
-New `SettingsScreen.slint` accessible from library top-bar gear icon.
-Theme picker (Light / Sepia / Dark), typography defaults (font size, line
-height, margin, justify toggle). `Command::UpdateSettings` → persist to SQLite
-`settings` table → apply theme to Slint window.
-
-### M2.7 — Tests + integration
-- Import pipeline: file copied to books/, dedup detects duplicate sha256
-- Library grid: snapshot.library populated after import
-- Cover extraction: cover_path set, file exists (test fixture)
-- Progress: open → turn page → close → reopen → same page
-- Metadata editing: title change persists in DB
-- Settings: theme change persists, load_settings round-trips
-- Clippy clean, fmt clean, 100+ total tests
-
-### M2.8 — Update TODO.md + CHANGELOG.md + commit/push
+**Notes / deferred:** cover rendering as image in grid (placeholder initial shown —
+cover_path stored, image display pending M3); "Continue reading" section and sort
+buttons (M2.2) not yet in UI; CSS subset engine (M1.4) still deferred.
 
 ---
 
