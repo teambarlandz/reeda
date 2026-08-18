@@ -4,6 +4,7 @@ use crate::commands::Command;
 use crate::events::{Event, NarrationState};
 use crate::models::{Annotation, AnnotationKind, AppSettings, Book, BookId, Chapter};
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
+use crate::storage::{Database, StorageResult};
 use crate::store::BookStore;
 
 /// A snapshot of the complete application state, serializable and sent to
@@ -85,6 +86,8 @@ pub struct App {
     reader_state: Option<ReaderState>,
     /// On-disk file storage for books and covers.
     store: Option<BookStore>,
+    /// SQLite database for persistence.
+    db: Option<Database>,
 }
 
 impl Default for App {
@@ -108,6 +111,7 @@ impl App {
             parsed_docs: ParsedDocRegistry::new(),
             reader_state: None,
             store: None,
+            db: None,
         }
     }
 
@@ -118,9 +122,49 @@ impl App {
         app
     }
 
+    /// Create an `App` with a persistent file store and SQLite database.
+    pub fn with_store_db(store: BookStore, db: Database) -> Self {
+        let mut app = Self::with_store(store);
+        app.db = Some(db);
+        app
+    }
+
     /// Set the file store (e.g., after initialization with a data directory).
     pub fn set_store(&mut self, store: BookStore) {
         self.store = Some(store);
+    }
+
+    /// Set the SQLite database handle.
+    pub fn set_db(&mut self, db: Database) {
+        self.db = Some(db);
+    }
+
+    /// Load books from the database into memory (call once at startup).
+    ///
+    /// Returns the number of books loaded.
+    pub fn load_books(&mut self) -> StorageResult<usize> {
+        let Some(db) = &self.db else {
+            return Ok(0);
+        };
+        let books = db.list_books()?;
+        let mut loaded = 0;
+        for book in books {
+            if !self.library.contains_key(&book.id) {
+                let id = book.id;
+                self.library.insert(id, book);
+                loaded += 1;
+            }
+        }
+        Ok(loaded)
+    }
+
+    /// Load application settings from the database (call once at startup).
+    pub fn load_settings_from_db(&mut self) -> StorageResult<()> {
+        let Some(db) = &self.db else {
+            return Ok(());
+        };
+        self.settings = db.load_settings()?;
+        Ok(())
     }
 
     /// Dispatch a command, mutating state and returning a list of events
@@ -342,7 +386,10 @@ impl App {
 
             // ── Settings ─────────────────────────────────────────────
             Command::UpdateSettings(settings) => {
-                self.settings = settings;
+                self.settings = settings.clone();
+                if let Some(db) = &self.db {
+                    let _ = db.save_settings(&settings);
+                }
                 vec![]
             }
         }
@@ -496,6 +543,19 @@ impl App {
                 };
                 book.updated_at = chrono::Utc::now();
             }
+            // Persist to SQLite (best-effort).
+            if let Some(db) = &self.db {
+                let progress = if total_pages > 0 {
+                    current_page as f64 / total_pages as f64
+                } else {
+                    0.0
+                };
+                if let Err(e) =
+                    db.update_book_position(book_id, &current_page.to_string(), progress)
+                {
+                    eprintln!("Warning: failed to persist reading position: {e}");
+                }
+            }
         }
     }
 
@@ -543,6 +603,10 @@ impl App {
             if let Some(ref store) = self.store {
                 let _ = store.delete_book_files(book_id);
             }
+            // Soft-delete in SQLite.
+            if let Some(db) = &self.db {
+                let _ = db.delete_book(book_id);
+            }
             vec![Event::LibraryChanged]
         } else {
             vec![Event::Error {
@@ -558,7 +622,12 @@ impl App {
     }
 
     /// Edit a book's metadata (title/author override).
-    fn edit_metadata(&mut self, book_id: BookId, title: String, author: Option<String>) -> Vec<Event> {
+    fn edit_metadata(
+        &mut self,
+        book_id: BookId,
+        title: String,
+        author: Option<String>,
+    ) -> Vec<Event> {
         if let Some(book) = self.library.get_mut(&book_id) {
             let trimmed = title.trim().to_string();
             if !trimmed.is_empty() {
@@ -566,9 +635,17 @@ impl App {
             }
             if let Some(a) = author {
                 let trimmed = a.trim().to_string();
-                book.author = if trimmed.is_empty() { None } else { Some(trimmed) };
+                book.author = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                };
             }
             book.updated_at = chrono::Utc::now();
+            // Persist to SQLite.
+            if let Some(db) = &self.db {
+                let _ = db.update_book_metadata(book_id, &book.title, book.author.as_deref());
+            }
             vec![Event::LibraryChanged]
         } else {
             vec![Event::Error {
@@ -663,6 +740,21 @@ impl App {
         // 6. Store the parsed document.
         let parsed = reader::epub_book_to_parsed_doc(&epub_book, book_id);
         self.parsed_docs.insert(book_id, parsed);
+
+        // 7. Persist book + chapters to SQLite (if configured).
+        if let Some(db) = &self.db {
+            if let Err(e) = db.insert_book(&book) {
+                eprintln!("Warning: failed to persist book: {e}");
+            }
+            if let Some(chapters) = self.chapters.get(&book_id) {
+                for chapter in chapters {
+                    if let Err(e) = db.insert_chapter(chapter) {
+                        eprintln!("Warning: failed to persist chapter: {e}");
+                        break;
+                    }
+                }
+            }
+        }
 
         self.library.insert(book_id, book);
 
@@ -1300,5 +1392,115 @@ mod tests {
         });
         let book = app.library.get(&book_id).unwrap();
         assert_eq!(book.author, None);
+    }
+
+    #[test]
+    fn import_persists_book_to_db() {
+        let db = crate::storage::Database::open_memory().unwrap();
+        let mut app = App::new();
+        app.set_db(db);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        // Verify the book is in the DB.
+        let db = app.db.as_ref().unwrap();
+        let books = db.list_books().unwrap();
+        assert_eq!(books.len(), 1);
+        assert_eq!(books[0].id, book_id);
+        assert_eq!(books[0].title, "Integration Test Book");
+        assert_eq!(books[0].author.as_deref(), Some("Test Author"));
+    }
+
+    #[test]
+    fn progress_persisted_to_db() {
+        let db = crate::storage::Database::open_memory().unwrap();
+        let mut app = App::new();
+        app.set_db(db);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        app.dispatch(Command::OpenBook { book_id });
+        let snap = app.snapshot();
+        if snap.total_pages > 1 {
+            app.dispatch(Command::TurnPage { forward: true });
+            let db = app.db.as_ref().unwrap();
+            let book = db.get_book(book_id).unwrap().unwrap();
+            assert_eq!(book.last_position.as_deref(), Some("1"));
+            assert!(book.progress_pct > 0.0);
+        }
+    }
+
+    #[test]
+    fn metadata_edit_persists_to_db() {
+        let db = crate::storage::Database::open_memory().unwrap();
+        let mut app = App::new();
+        app.set_db(db);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        app.dispatch(Command::EditMetadata {
+            book_id,
+            title: "Renamed".into(),
+            author: Some("New Author".into()),
+        });
+
+        let db = app.db.as_ref().unwrap();
+        let book = db.get_book(book_id).unwrap().unwrap();
+        assert_eq!(book.title, "Renamed");
+        assert_eq!(book.author.as_deref(), Some("New Author"));
+    }
+
+    #[test]
+    fn load_books_restores_library() {
+        let db = crate::storage::Database::open_memory().unwrap();
+        let mut app = App::new();
+        app.set_db(db);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        // Simulate restart: new App sharing the same DB.
+        let db = app.db.take().unwrap();
+        let mut app2 = App::new();
+        app2.set_db(db);
+        let loaded = app2.load_books().unwrap();
+        assert_eq!(loaded, 1);
+        assert!(app2.library.contains_key(&book_id));
+    }
+
+    #[test]
+    fn settings_persist_and_load_round_trip() {
+        let db = crate::storage::Database::open_memory().unwrap();
+        let mut app = App::new();
+        app.set_db(db);
+
+        let mut settings = app.settings();
+        settings.theme = crate::models::Theme::Dark;
+        settings.typography.font_size_pt = 24.0;
+        app.dispatch(Command::UpdateSettings(settings));
+
+        let db = app.db.as_ref().unwrap();
+        let loaded = db.load_settings().unwrap();
+        assert_eq!(loaded.theme, crate::models::Theme::Dark);
+        assert_eq!(loaded.typography.font_size_pt, 24.0);
     }
 }

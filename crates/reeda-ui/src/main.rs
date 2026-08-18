@@ -85,7 +85,12 @@ fn main() {
             let app = weak.unwrap();
             let core = core_cell.borrow();
             let id = book_id.to_string();
-            if let Some(book) = core.snapshot().library.iter().find(|b| b.id.to_string() == id) {
+            if let Some(book) = core
+                .snapshot()
+                .library
+                .iter()
+                .find(|b| b.id.to_string() == id)
+            {
                 app.set_metadata_title(slint::SharedString::from(&book.title));
                 app.set_metadata_author(slint::SharedString::from(
                     book.author.as_deref().unwrap_or(""),
@@ -222,21 +227,37 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
     }
 
     // Library state.
-    let non_deleted: Vec<_> = snap.library.iter().filter(|b| b.deleted_at.is_none()).collect();
+    let non_deleted: Vec<_> = snap
+        .library
+        .iter()
+        .filter(|b| b.deleted_at.is_none())
+        .collect();
     app.set_library_is_empty(non_deleted.is_empty());
-    app.set_library_count_text(slint::SharedString::from(format!("{} books", non_deleted.len())));
+    app.set_library_count_text(slint::SharedString::from(format!(
+        "{} books",
+        non_deleted.len()
+    )));
 
-    let books_model: Vec<BookInfo> = non_deleted.iter().map(|b| {
-        let initial = b.title.chars().next().unwrap_or('?').to_uppercase().to_string();
-        BookInfo {
-            book_id: slint::SharedString::from(b.id.to_string()),
-            title: slint::SharedString::from(&b.title),
-            author: slint::SharedString::from(b.author.as_deref().unwrap_or("Unknown")),
-            cover_path: slint::SharedString::from(b.cover_path.as_deref().unwrap_or("")),
-            progress_pct: b.progress_pct as f32,
-            initial: slint::SharedString::from(initial),
-        }
-    }).collect();
+    let books_model: Vec<BookInfo> = non_deleted
+        .iter()
+        .map(|b| {
+            let initial = b
+                .title
+                .chars()
+                .next()
+                .unwrap_or('?')
+                .to_uppercase()
+                .to_string();
+            BookInfo {
+                book_id: slint::SharedString::from(b.id.to_string()),
+                title: slint::SharedString::from(&b.title),
+                author: slint::SharedString::from(b.author.as_deref().unwrap_or("Unknown")),
+                cover_path: slint::SharedString::from(b.cover_path.as_deref().unwrap_or("")),
+                progress_pct: b.progress_pct as f32,
+                initial: slint::SharedString::from(initial),
+            }
+        })
+        .collect();
     app.set_library_books(slint::ModelRc::from(books_model.as_slice()));
 
     // Settings state.

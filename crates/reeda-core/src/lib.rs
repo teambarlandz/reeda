@@ -15,6 +15,7 @@ pub use models::{
     Chapter, ChapterId, HighlightColor, ShelfId, TapZonesLayout, Theme, Typography,
 };
 pub use reader::{PageBlock, PageContent};
+pub use storage::{Database, StorageError, StorageResult};
 pub use store::{sha256_hex, BookStore};
 
 /// Returns the current reeda-core crate version.

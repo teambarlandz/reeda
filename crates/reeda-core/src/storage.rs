@@ -264,6 +264,21 @@ impl Database {
         Ok(())
     }
 
+    /// Update a book's title/author (metadata override).
+    pub fn update_book_metadata(
+        &self,
+        book_id: BookId,
+        title: &str,
+        author: Option<&str>,
+    ) -> StorageResult<()> {
+        let now = chrono::Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE books SET title = ?1, author = ?2, updated_at = ?3 WHERE id = ?4",
+            params![title, author, now, book_id.0.to_string()],
+        )?;
+        Ok(())
+    }
+
     /// Update a book's last_opened_at and last_position.
     pub fn update_book_position(
         &self,
