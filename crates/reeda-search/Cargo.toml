@@ -8,3 +8,8 @@ repository.workspace = true
 description = "Reeda full-text search: Tantivy index, querying, ranking (docs/SEARCH_SPEC.md)."
 
 [dependencies]
+reeda-epub = { version = "0.1.0", path = "../reeda-epub" }
+tantivy = "0.26.1"
+
+[dev-dependencies]
+tempfile = "3.27.0"

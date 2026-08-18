@@ -1,12 +1,14 @@
 //! `reeda-search` — full-text search for Reeda (Tantivy — ADR-009).
 //!
-//! Planned modules (docs/SEARCH_SPEC.md): index schema, analyzer selection
-//! per language, background indexer with debounce, ranked queries with
-//! per-book grouping and locator payloads.
-//!
-//! Current state: skeleton. `tantivy` is added in M4.
+//! Modules (docs/SEARCH_SPEC.md): index schema + lifecycle (`index`), query
+//! layer with per-language analysis (`query`, M4.2), background indexer with
+//! debounce (`indexer`, M4.3).
 
 #![deny(missing_docs)]
+
+pub mod index;
+
+pub use index::{IndexManager, IndexedBlock, SearchHit, SearchResult, INDEX_VERSION};
 
 /// Returns the current reeda-search crate version.
 pub fn crate_version() -> &'static str {
