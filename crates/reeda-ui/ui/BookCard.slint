@@ -1,0 +1,79 @@
+// BookCard.slint — single book card for the library grid.
+
+import { Theme } from "./Theme.slint";
+
+export struct BookInfo {
+    book-id: string,
+    title: string,
+    author: string,
+    cover-path: string,
+    progress-pct: float,
+    initial: string,
+}
+
+export component BookCard inherits Rectangle {
+    in property < BookInfo > book;
+    callback clicked(string);
+
+    width: 150px;
+    height: 220px;
+    background: Theme.current.surface;
+    border-radius: 8px;
+
+    VerticalLayout {
+        padding: 8px;
+        spacing: 4px;
+
+        // Cover area (placeholder with initial letter).
+        Rectangle {
+            height: 140px;
+            background: Theme.current.surface_variant;
+            border-radius: 6px;
+
+            Text {
+                text: book.initial;
+                font-size: 48pt;
+                font-weight: 700;
+                color: Theme.current.accent;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        // Title.
+        Text {
+            text: book.title;
+            font-size: 12pt;
+            font-weight: 600;
+            color: Theme.current.foreground;
+            overflow: elide;
+        }
+
+        // Author.
+        Text {
+            text: book.author;
+            font-size: 10pt;
+            color: Theme.current.foreground;
+            opacity: 0.6;
+            overflow: elide;
+        }
+
+        // Progress bar.
+        Rectangle {
+            height: 4px;
+            background: Theme.current.surface_variant;
+            border-radius: 2px;
+
+            Rectangle {
+                width: parent.width * book.progress-pct;
+                height: 4px;
+                background: Theme.current.accent;
+                border-radius: 2px;
+            }
+        }
+    }
+
+    touch := TouchArea {
+        clicked => { root.clicked(book.book-id); }
+    }
+}

@@ -1,6 +1,7 @@
 // AppRoot.slint — root component with theme provider + screen stack.
 
 import { Theme } from "./Theme.slint";
+import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
 import { ReaderScreen } from "./ReaderScreen.slint";
 import { ErrorDialog } from "./Dialogs.slint";
@@ -21,6 +22,7 @@ export component AppRoot inherits Window {
     // ── Library properties ──────────────────────────────────────────
     in-out property < bool > library-is-empty: true;
     in-out property < string > library-count-text: "0 books";
+    in-out property < [BookInfo] > library-books: [];
 
     // ── Reader properties (bound from Rust) ─────────────────────────
     in-out property < string > book-title: "";
@@ -39,6 +41,7 @@ export component AppRoot inherits Window {
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
         book-count-text: root.library-count-text;
+        books: root.library-books;
 
         import-requested => { root.import-requested(); }
 

@@ -2,6 +2,7 @@
 // See docs/UI_UX.md §3.
 
 import { Theme } from "./Theme.slint";
+import { BookCard, BookInfo } from "./BookCard.slint";
 
 export component LibraryScreen inherits Rectangle {
     callback import-requested();
@@ -9,6 +10,7 @@ export component LibraryScreen inherits Rectangle {
 
     in property < bool > is-empty: true;
     in property < string > book-count-text: "0 books";
+    in property < [BookInfo] > books;
 
     background: Theme.current.background;
 
@@ -29,10 +31,18 @@ export component LibraryScreen inherits Rectangle {
                     font-weight: 700;
                     color: Theme.current.foreground;
                 }
+
+                Text {
+                    text: root.book-count-text;
+                    font-size: 14pt;
+                    color: Theme.current.foreground;
+                    opacity: 0.6;
+                    vertical-alignment: center;
+                }
             }
         }
 
-        // Content area
+        // Empty state
         if root.is-empty : VerticalLayout {
             horizontal-stretch: 1;
             alignment: center;
@@ -93,14 +103,19 @@ export component LibraryScreen inherits Rectangle {
             }
         }
 
-        // Library grid (populated state) — placeholder for M2.
-        if !root.is-empty : Text {
-            text: root.book-count-text;
-            color: Theme.current.foreground;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-            font-size: 16pt;
+        // Library grid (populated state).
+        if !root.is-empty : Flickable {
             horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 16px;
+                spacing: 16px;
+
+                for book in root.books: BookCard {
+                    book: book;
+                    clicked(id) => { root.book-opened(id); }
+                }
+            }
         }
 
         // Bottom bar
