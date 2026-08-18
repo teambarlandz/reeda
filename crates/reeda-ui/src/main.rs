@@ -259,6 +259,81 @@ fn main() {
         }
     });
 
+    // ── Notes ────────────────────────────────────────────────────────
+    app.on_note_requested({
+        let app = app.as_weak();
+        let core_cell = core_cell.clone();
+        let selected = selected_highlight.clone();
+        move || {
+            let existing_note = {
+                let core = core_cell.borrow();
+                selected
+                    .borrow()
+                    .clone()
+                    .and_then(|id| id.parse::<reeda_core::AnnotationId>().ok())
+                    .and_then(|aid| {
+                        core.snapshot()
+                            .annotations
+                            .iter()
+                            .find(|a| a.id == aid)
+                            .and_then(|a| a.text.clone())
+                    })
+                    .unwrap_or_default()
+            };
+            let app = app.unwrap();
+            app.set_reader_edit_popover_visible(false);
+            app.set_note_dialog_text(slint::SharedString::from(existing_note));
+            app.set_note_dialog_open(true);
+        }
+    });
+
+    app.on_note_saved({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        let selected = selected_highlight.clone();
+        move |text: slint::SharedString| {
+            let id = selected.borrow().clone();
+            let text = text.trim().to_string();
+            {
+                let mut core = core_cell.borrow_mut();
+                let annotation_id = id.and_then(|s| s.parse().ok());
+                core.dispatch(reeda_core::Command::AddNote {
+                    annotation_id,
+                    text,
+                });
+            }
+            let app = weak.unwrap();
+            app.set_note_dialog_open(false);
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_notes_requested({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_notes_jump({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |id: slint::SharedString| {
+            if let Ok(annotation_id) = id.to_string().parse() {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::JumpToAnnotation { annotation_id });
+            }
+            let app = weak.unwrap();
+            app.set_show_notes(false);
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -267,9 +342,13 @@ fn main() {
 
 /// Push a `StateSnapshot` into the Slint UI properties.
 fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
+    let notes_open = app.get_show_notes();
+
     if let Some(ref book) = snap.current_book {
-        app.set_show_library(false);
-        app.set_show_reader(true);
+        if !notes_open {
+            app.set_show_library(false);
+            app.set_show_reader(true);
+        }
         app.set_book_title(slint::SharedString::from(&book.title));
         app.set_page_text(slint::SharedString::from(&snap.page_text));
         app.set_reader_page_font_size(snap.settings.typography.font_size_pt);
@@ -313,9 +392,27 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         app.set_progress_pct(progress as f32 / 100.0);
         app.set_progress_label(slint::SharedString::from(format!("{progress}%")));
     } else {
-        app.set_show_library(true);
-        app.set_show_reader(false);
+        if !notes_open {
+            app.set_show_library(true);
+            app.set_show_reader(false);
+        }
     }
+
+    // Notes list state.
+    let notes_model: Vec<NotesEntry> = snap
+        .notes_entries
+        .iter()
+        .map(|e| NotesEntry {
+            annotation_id: slint::SharedString::from(&e.annotation_id),
+            is_highlight: e.is_highlight,
+            color_index: e.color_index,
+            snippet: slint::SharedString::from(&e.snippet),
+            note_text: slint::SharedString::from(&e.note_text),
+            chapter_title: slint::SharedString::from(&e.chapter_title),
+            created_at: slint::SharedString::from(&e.created_at),
+        })
+        .collect();
+    app.set_notes_entries(slint::ModelRc::from(notes_model.as_slice()));
 
     // Library state.
     let non_deleted: Vec<_> = snap

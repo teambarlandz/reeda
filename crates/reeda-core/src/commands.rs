@@ -35,6 +35,9 @@ pub enum Command {
     /// Jump to a specific CFI position.
     JumpTo { cfi: String },
 
+    /// Jump to the page containing an annotation.
+    JumpToAnnotation { annotation_id: AnnotationId },
+
     // ── Typography & Theme ───────────────────────────────────────────
     /// Set the reading typography.
     SetTypography(Typography),

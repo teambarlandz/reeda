@@ -19,6 +19,8 @@ export component ReaderScreen inherits Rectangle {
     callback highlight-tapped(string);
     callback edit-color(int);
     callback delete-highlight();
+    callback note-requested();
+    callback notes-requested();
     callback close-popover();
 
     in property < bool > chrome-visible: false;
@@ -166,12 +168,25 @@ export component ReaderScreen inherits Rectangle {
             HorizontalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
+                alignment: space-between;
 
                 Text {
                     text: root.progress-label;
                     font-size: 12pt;
                     color: Theme.current.foreground;
                     opacity: 0.7;
+                }
+
+                Text {
+                    text: "Notes";
+                    font-size: 12pt;
+                    font-weight: 600;
+                    color: Theme.current.accent;
+                    vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.notes-requested(); }
+                    }
                 }
             }
         }
@@ -242,6 +257,15 @@ export component ReaderScreen inherits Rectangle {
 
             HorizontalLayout {
                 spacing: 12px;
+
+                Text {
+                    text: "Add note";
+                    font-size: 11pt;
+                    color: Theme.current.accent;
+                    TouchArea {
+                        clicked => { root.note-requested(); }
+                    }
+                }
 
                 Text {
                     text: "Delete";

@@ -12,7 +12,7 @@ use reeda_epub::paginator::{self, PageLayout, Pages};
 use reeda_epub::selection::{intersect_range_with_page, GlobalRange};
 
 use crate::models::{
-    Annotation, AnnotationKind, BookId, Chapter, HighlightColor, LineRun, Typography,
+    Annotation, AnnotationKind, BookId, Chapter, HighlightColor, LineRun, NotesEntry, Typography,
 };
 
 /// A rendered page's text content, ready for the Slint UI.
@@ -321,6 +321,72 @@ fn build_line(
         runs.push(LineRun::plain(text[pos..line_end].to_string()));
     }
     runs
+}
+
+/// Build the notes/highlights list entries for a book.
+///
+/// Flattens annotations into `NotesEntry` display rows, sorted by the
+/// global block position of each annotation's start CFI (groups entries by
+/// chapter naturally, chapters being in spine order).
+pub fn notes_entries(doc: &DocumentModel, annotations: &[Annotation]) -> Vec<NotesEntry> {
+    let spine_length = doc.chapters.len() as u32;
+    let mut with_pos: Vec<(usize, NotesEntry)> = Vec::new();
+
+    for ann in annotations {
+        if ann.deleted_at.is_some() || ann.kind == AnnotationKind::Bookmark {
+            continue;
+        }
+        let is_highlight = ann.kind == AnnotationKind::Highlight;
+        let color_index = match ann.color {
+            Some(HighlightColor::Yellow) => 0,
+            Some(HighlightColor::Green) => 1,
+            Some(HighlightColor::Blue) => 2,
+            Some(HighlightColor::Pink) => 3,
+            None => 0,
+        };
+
+        let (chapter_title, block_start) = ann
+            .cfi
+            .as_ref()
+            .and_then(|r| {
+                let range = EpubCfiRange {
+                    start: Cfi(r.start.clone()),
+                    end: Cfi(r.end.clone()),
+                };
+                GlobalRange::from_cfi(&range, spine_length)
+            })
+            .map(|gr| {
+                let title = doc
+                    .block_at(gr.block_start)
+                    .map(|(ch, _, _)| ch.title.clone())
+                    .unwrap_or_default();
+                (title, gr.block_start)
+            })
+            .unwrap_or((String::new(), usize::MAX));
+
+        let cfi_start = ann
+            .cfi
+            .as_ref()
+            .map(|r| r.start.clone())
+            .unwrap_or_default();
+
+        with_pos.push((
+            block_start,
+            NotesEntry {
+                annotation_id: ann.id.0.to_string(),
+                is_highlight,
+                color_index,
+                snippet: ann.snippet.clone().unwrap_or_default(),
+                note_text: ann.text.clone().unwrap_or_default(),
+                chapter_title,
+                created_at: ann.created_at.to_rfc3339(),
+                cfi_start,
+            },
+        ));
+    }
+
+    with_pos.sort_by_key(|(pos, _)| *pos);
+    with_pos.into_iter().map(|(_, e)| e).collect()
 }
 
 /// Flatten a block to plain text.
@@ -686,7 +752,7 @@ mod tests {
         let _ = idx;
     }
 
-    fn test_highlight_annotation(doc: &DocumentModel) -> Annotation {
+    fn test_highlight_annotation(_doc: &DocumentModel) -> Annotation {
         // Highlight chars 5..15 of block 1 (the first paragraph).
         let range = GlobalRange::new(1, 5, 1, 15).to_cfi();
         Annotation::new_highlight(
@@ -790,5 +856,55 @@ mod tests {
         let pages = paginate_doc(&doc, &layout);
         let lines = build_page_lines(&doc, &pages, 999, 40, &[]);
         assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn notes_entries_sorted_by_position() {
+        let doc = test_doc();
+        // Chapter 2 highlight (global block 4), chapter 1 highlight (block 1),
+        // and a standalone note — order must be chapter 1 first.
+        let ch2_range = GlobalRange::new(4, 0, 4, 10).to_cfi();
+        let ch2_hl = Annotation::new_highlight(
+            BookId::new(),
+            crate::models::CfiRange::new(ch2_range.start.0, ch2_range.end.0),
+            HighlightColor::Blue,
+            Some("chapter two text".into()),
+        );
+        let ch1_range = GlobalRange::new(1, 5, 1, 15).to_cfi();
+        let ch1_hl = Annotation::new_highlight(
+            BookId::new(),
+            crate::models::CfiRange::new(ch1_range.start.0, ch1_range.end.0),
+            HighlightColor::Yellow,
+            Some("first para".into()),
+        );
+        let note = Annotation::new_note(BookId::new(), None, "A standalone thought".into());
+
+        let entries = notes_entries(&doc, &[ch2_hl.clone(), ch1_hl.clone(), note.clone()]);
+        assert_eq!(entries.len(), 3);
+        assert_eq!(entries[0].chapter_title, "Chapter 1");
+        assert_eq!(entries[1].chapter_title, "Chapter 2");
+        assert!(entries[0].is_highlight);
+        assert_eq!(entries[0].color_index, 0);
+        assert_eq!(entries[1].color_index, 2);
+        assert_eq!(entries[2].is_highlight, false);
+        assert_eq!(entries[2].note_text, "A standalone thought");
+        assert_eq!(entries[0].annotation_id, ch1_hl.id.0.to_string());
+    }
+
+    #[test]
+    fn notes_entries_skips_bookmarks_and_deleted() {
+        let doc = test_doc();
+        let range = GlobalRange::new(1, 0, 1, 5).to_cfi();
+        let mut hl = Annotation::new_highlight(
+            BookId::new(),
+            crate::models::CfiRange::new(range.start.0, range.end.0),
+            HighlightColor::Green,
+            Some("snippet".into()),
+        );
+        hl.deleted_at = Some(chrono::Utc::now());
+        let bm = Annotation::new_bookmark(BookId::new(), "/6/4".into());
+
+        let entries = notes_entries(&doc, &[hl, bm]);
+        assert!(entries.is_empty());
     }
 }

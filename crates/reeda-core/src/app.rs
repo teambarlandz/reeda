@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use crate::commands::Command;
 use crate::events::{Event, NarrationState};
-use crate::models::{Annotation, AnnotationKind, AppSettings, Book, BookId, Chapter, LineRun};
+use crate::models::{
+    Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookId, Chapter, LineRun,
+    NotesEntry,
+};
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
 use crate::storage::{Database, StorageResult};
 use crate::store::BookStore;
@@ -35,6 +38,8 @@ pub struct StateSnapshot {
     pub page_blocks: Vec<PageBlock>,
     /// Renderable lines of the current page (plain + highlighted runs).
     pub page_lines: Vec<Vec<LineRun>>,
+    /// Notes/highlights list entries for the current book.
+    pub notes_entries: Vec<NotesEntry>,
     /// Table of contents labels for the current book.
     pub toc_labels: Vec<String>,
 }
@@ -54,6 +59,7 @@ impl Default for StateSnapshot {
             page_chapter_title: String::new(),
             page_blocks: Vec::new(),
             page_lines: Vec::new(),
+            notes_entries: Vec::new(),
             toc_labels: Vec::new(),
         }
     }
@@ -193,6 +199,8 @@ impl App {
             Command::TurnPage { forward } => self.turn_page(forward),
 
             Command::JumpTo { cfi } => self.jump_to(cfi),
+
+            Command::JumpToAnnotation { annotation_id } => self.jump_to_annotation(annotation_id),
 
             // ── Typography & Theme ───────────────────────────────────
             Command::SetTypography(ty) => {
@@ -477,6 +485,19 @@ impl App {
                 )
             };
 
+        // Notes list entries for the current book.
+        let notes_entries = if let Some(book_id) = self.current_book_id {
+            if let Some(parsed) = self.parsed_docs.get(&book_id) {
+                let annotations: Vec<Annotation> =
+                    self.annotations.get(&book_id).cloned().unwrap_or_default();
+                reader::notes_entries(&parsed.document, &annotations)
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
         StateSnapshot {
             library,
             current_book,
@@ -490,6 +511,7 @@ impl App {
             page_chapter_title,
             page_blocks,
             page_lines,
+            notes_entries,
             toc_labels,
         }
     }
@@ -621,6 +643,24 @@ impl App {
             }
         }
         vec![]
+    }
+
+    /// Jump to the page containing an annotation.
+    fn jump_to_annotation(&mut self, annotation_id: AnnotationId) -> Vec<Event> {
+        let Some(book_id) = self.current_book_id else {
+            return vec![];
+        };
+        let found = self.annotations.get(&book_id).and_then(|v| {
+            v.iter()
+                .find(|a| a.id == annotation_id && a.deleted_at.is_none())
+                .and_then(|a| a.cfi.as_ref().map(|r| r.start.clone()))
+        });
+        match found {
+            Some(cfi) => self.jump_to(cfi),
+            None => vec![Event::Error {
+                message: "Annotation not found".into(),
+            }],
+        }
     }
 
     fn delete_book(&mut self, book_id: BookId) -> Vec<Event> {
@@ -835,7 +875,9 @@ impl SettingsExt for AppSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{AnnotationKind, BookFormat, CfiRange, HighlightColor, Theme};
+    use crate::models::{
+        AnnotationId, AnnotationKind, BookFormat, CfiRange, HighlightColor, Theme,
+    };
 
     fn make_test_book() -> Book {
         Book::new(
@@ -973,6 +1015,79 @@ mod tests {
         let events = app.dispatch(Command::ToggleBookmark { cfi: "/6/4".into() });
         assert!(matches!(&events[0], Event::AnnotationDeleted { .. }));
         assert_eq!(app.snapshot().annotations.len(), 0);
+    }
+
+    #[test]
+    fn jump_to_annotation_navigates_to_page() {
+        let mut app = App::new();
+        let book = make_test_book();
+        let id = book.id;
+        app.add_book(book);
+
+        // Register a parsed doc with enough content for multiple pages.
+        let mut blocks = Vec::new();
+        for i in 0..40 {
+            blocks.push(reeda_epub::document::Block::Paragraph(vec![
+                reeda_epub::document::Inline::Text(format!(
+                    "Paragraph {i}: content that fills space for pagination purposes here."
+                )),
+            ]));
+        }
+        let doc = reeda_epub::document::DocumentModel {
+            chapters: vec![reeda_epub::document::Chapter {
+                spine_index: 0,
+                title: "Chapter".into(),
+                href: "ch.xhtml".into(),
+                blocks,
+            }],
+        };
+        app.parsed_docs.insert(
+            id,
+            crate::reader::ParsedDoc {
+                document: doc,
+                toc: reeda_epub::nav::TableOfContents { items: vec![] },
+                spine: vec![crate::reader::SpineEntry {
+                    title: "Chapter".into(),
+                    spine_index: 0,
+                }],
+            },
+        );
+
+        app.dispatch(Command::OpenBook { book_id: id });
+        assert!(app.snapshot().total_pages > 1);
+
+        // Highlight at global block 25 (late in the book).
+        let range = reeda_epub::selection::GlobalRange::new(25, 0, 25, 10).to_cfi();
+        let events = app.dispatch(Command::AddHighlight {
+            range: CfiRange::new(range.start.0, range.end.0),
+            color: HighlightColor::Yellow,
+        });
+        let annotation_id = match &events[0] {
+            Event::AnnotationChanged { annotation_id } => *annotation_id,
+            _ => panic!("expected AnnotationChanged"),
+        };
+
+        // Move to page 0, then jump to the annotation's page.
+        let page0 = app.snapshot().current_page;
+        let events = app.dispatch(Command::JumpToAnnotation { annotation_id });
+        assert_eq!(events.len(), 1);
+        assert!(matches!(&events[0], Event::PageChanged { .. }));
+        let snap = app.snapshot();
+        assert!(snap.current_page >= page0);
+    }
+
+    #[test]
+    fn jump_to_unknown_annotation_returns_error() {
+        let mut app = App::new();
+        let book = make_test_book();
+        let id = book.id;
+        app.add_book(book);
+        app.dispatch(Command::OpenBook { book_id: id });
+
+        let events = app.dispatch(Command::JumpToAnnotation {
+            annotation_id: AnnotationId::new(),
+        });
+        assert!(matches!(&events[0], Event::Error { .. }));
     }
 
     #[test]

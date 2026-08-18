@@ -5,8 +5,9 @@ import { Theme } from "./Theme.slint";
 import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
 import { ReaderScreen, LineRun } from "./ReaderScreen.slint";
+import { NotesScreen, NotesEntry } from "./NotesScreen.slint";
 import { SettingsScreen } from "./SettingsScreen.slint";
-import { ErrorDialog, MetadataDialog } from "./Dialogs.slint";
+import { ErrorDialog, MetadataDialog, NoteDialog } from "./Dialogs.slint";
 
 export component AppRoot inherits Window {
     title: "Reeda";
@@ -17,6 +18,12 @@ export component AppRoot inherits Window {
     in-out property < bool > show-library: true;
     in-out property < bool > show-reader: false;
     in-out property < bool > show-settings: false;
+    in-out property < bool > show-notes: false;
+
+    // ── Notes list ──────────────────────────────────────────────────
+    in-out property < [NotesEntry] > notes-entries: [];
+    in-out property < bool > note-dialog-open: false;
+    in-out property < string > note-dialog-text: "";
 
     // ── Error dialog ────────────────────────────────────────────────
     in-out property < string > error-message: "";
@@ -57,7 +64,13 @@ export component AppRoot inherits Window {
     callback highlight-tapped(string);
     callback edit-color(int);
     callback delete-highlight();
+    callback note-requested();
     callback close-popover();
+    callback notes-back();
+    callback notes-jump(string);
+    callback notes-requested();
+    callback note-saved(string);
+    callback note-cancelled();
     callback import-requested();
     callback metadata-requested(string);
     callback metadata-saved(string, string);
@@ -113,7 +126,30 @@ export component AppRoot inherits Window {
         highlight-tapped(id) => { root.highlight-tapped(id); }
         edit-color(i) => { root.edit-color(i); }
         delete-highlight => { root.delete-highlight(); }
+        note-requested => { root.note-requested(); }
+        notes-requested => {
+            root.show-reader = false;
+            root.show-notes = true;
+            root.notes-requested();
+        }
         close-popover => { root.reader-edit-popover-visible = false; }
+    }
+
+    if root.show-notes : NotesScreen {
+        book-title: root.book-title;
+        entries: root.notes-entries;
+
+        back-pressed => {
+            root.show-notes = false;
+            root.show-reader = true;
+            root.notes-back();
+        }
+
+        jump-to(id) => {
+            root.show-notes = false;
+            root.show-reader = true;
+            root.notes-jump(id);
+        }
     }
 
     if root.show-settings : SettingsScreen {
@@ -150,6 +186,21 @@ export component AppRoot inherits Window {
         cancel => {
             root.metadata-open = false;
             root.metadata-cancelled();
+        }
+    }
+
+    NoteDialog {
+        open: root.note-dialog-open;
+        note-text: root.note-dialog-text;
+
+        save(text) => {
+            root.note-dialog-open = false;
+            root.note-saved(text);
+        }
+
+        cancel => {
+            root.note-dialog-open = false;
+            root.note-cancelled();
         }
     }
 }
