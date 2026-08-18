@@ -114,7 +114,8 @@ export component ReaderScreen inherits Rectangle {
                             background: run.color-index == 0 ? Theme.current.highlight-yellow
                                 : run.color-index == 1 ? Theme.current.highlight-green
                                 : run.color-index == 2 ? Theme.current.highlight-blue
-                                : Theme.current.highlight-pink;
+                                : run.color-index == 3 ? Theme.current.highlight-pink
+                                : Theme.current.highlight-cyan;
                             opacity: 0.4;
                         }
 
@@ -139,7 +140,8 @@ export component ReaderScreen inherits Rectangle {
                             background: run.color-index == 0 ? Theme.current.highlight-yellow
                                 : run.color-index == 1 ? Theme.current.highlight-green
                                 : run.color-index == 2 ? Theme.current.highlight-blue
-                                : Theme.current.highlight-pink;
+                                : run.color-index == 3 ? Theme.current.highlight-pink
+                                : Theme.current.highlight-cyan;
                         }
 
                         if run.has-note : Rectangle {

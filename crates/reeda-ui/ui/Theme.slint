@@ -13,6 +13,7 @@ export struct Palette {
     highlight-green: brush,
     highlight-blue: brush,
     highlight-pink: brush,
+    highlight-cyan: brush,
 }
 
 export struct TypographyTokens {
@@ -35,6 +36,7 @@ export global Theme {
         highlight-green: #9FE8B0,
         highlight-blue: #A8D8F0,
         highlight-pink: #F7B7D6,
+        highlight-cyan: #7FE3F0,
     };
     in property < Palette > sepia-palette: {
         background: #F1E8D8,
@@ -47,6 +49,7 @@ export global Theme {
         highlight-green: #9FE8B0,
         highlight-blue: #A8D8F0,
         highlight-pink: #F7B7D6,
+        highlight-cyan: #7FE3F0,
     };
     in property < Palette > dark-palette: {
         background: #101418,
@@ -59,6 +62,7 @@ export global Theme {
         highlight-green: #9FE8B0,
         highlight-blue: #A8D8F0,
         highlight-pink: #F7B7D6,
+        highlight-cyan: #7FE3F0,
     };
 
     // Current palette — set by Rust side via property binding.

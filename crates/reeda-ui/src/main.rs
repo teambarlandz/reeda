@@ -415,6 +415,81 @@ fn main() {
         }
     });
 
+    // ── Search ───────────────────────────────────────────────────────
+    app.on_search_requested({
+        let weak = weak.clone();
+        move || {
+            let app = weak.unwrap();
+            app.set_search_query(slint::SharedString::from(""));
+            app.set_search_has_query(false);
+            app.set_search_hits(slint::ModelRc::from(Vec::<SearchHit>::new().as_slice()));
+        }
+    });
+
+    app.on_search_back({
+        let weak = weak.clone();
+        move || {
+            let app = weak.unwrap();
+            app.set_search_query(slint::SharedString::from(""));
+            app.set_search_has_query(false);
+            app.set_search_hits(slint::ModelRc::from(Vec::<SearchHit>::new().as_slice()));
+        }
+    });
+
+    // Debounce: only dispatch the most recent query after 300ms of inactivity.
+    let pending_query: std::rc::Rc<std::cell::RefCell<Option<String>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+
+    app.on_search_query_changed({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        let pending = pending_query.clone();
+        move |query: slint::SharedString| {
+            let query = query.to_string();
+            *pending.borrow_mut() = Some(query.clone());
+            let weak = weak.clone();
+            let core_cell = core_cell.clone();
+            let pending = pending.clone();
+            slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
+                // Skip if a newer query was typed meanwhile.
+                if pending.borrow().as_deref() != Some(query.as_str()) {
+                    return;
+                }
+                {
+                    let mut core = core_cell.borrow_mut();
+                    core.dispatch(reeda_core::Command::Search { query });
+                }
+                let app = weak.unwrap();
+                let snap = core_cell.borrow().snapshot();
+                update_ui(&app, &snap);
+            });
+        }
+    });
+
+    app.on_search_hit_opened({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |book_id: slint::SharedString,
+              cfi: slint::SharedString,
+              block_index: i32,
+              char_offset: i32,
+              term_len: i32| {
+            if let Ok(book_id) = book_id.to_string().parse() {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::OpenSearchHit {
+                    book_id,
+                    cfi: cfi.to_string(),
+                    block_index: block_index as u32,
+                    char_offset: char_offset as u32,
+                    term_len: term_len as u32,
+                });
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -424,9 +499,10 @@ fn main() {
 /// Push a `StateSnapshot` into the Slint UI properties.
 fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
     let notes_open = app.get_show_notes();
+    let search_open = app.get_show_search();
 
     if let Some(ref book) = snap.current_book {
-        if !notes_open {
+        if !notes_open && !search_open {
             app.set_show_library(false);
             app.set_show_reader(true);
         }
@@ -447,6 +523,7 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
                             Some(reeda_core::HighlightColor::Green) => 1,
                             Some(reeda_core::HighlightColor::Blue) => 2,
                             Some(reeda_core::HighlightColor::Pink) => 3,
+                            Some(reeda_core::HighlightColor::Cyan) => 4,
                             None => 0,
                         };
                         LineRun {
@@ -473,10 +550,35 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         app.set_progress_pct(progress as f32 / 100.0);
         app.set_progress_label(slint::SharedString::from(format!("{progress}%")));
     } else {
-        if !notes_open {
+        if !notes_open && !search_open {
             app.set_show_library(true);
             app.set_show_reader(false);
         }
+    }
+
+    // Search results state.
+    let search_model: Vec<SearchHit> = snap
+        .last_search
+        .as_ref()
+        .map(|res| {
+            res.hits
+                .iter()
+                .map(|h| SearchHit {
+                    book_id: slint::SharedString::from(h.book_id.to_string()),
+                    book_title: slint::SharedString::from(&h.book_title),
+                    chapter_title: slint::SharedString::from(&h.chapter_title),
+                    snippet: slint::SharedString::from(strip_mark_tags(&h.snippet)),
+                    cfi: slint::SharedString::from(&h.cfi),
+                    block_index: h.block_index as i32,
+                    char_offset: h.char_offset as i32,
+                    term_len: h.term_len as i32,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    app.set_search_hits(slint::ModelRc::from(search_model.as_slice()));
+    if snap.last_search.is_none() {
+        app.set_search_has_query(false);
     }
 
     // Notes list state.
@@ -562,4 +664,9 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
     app.set_settings_theme_index(theme_index);
     app.set_settings_font_size(snap.settings.typography.font_size_pt as i32);
     app.set_settings_line_height((snap.settings.typography.line_height * 10.0) as i32);
+}
+
+/// Strip `<mark>` tags from a search snippet for plain-text rendering.
+fn strip_mark_tags(s: &str) -> String {
+    s.replace("<mark>", "").replace("</mark>", "")
 }

@@ -9,6 +9,7 @@ export component LibraryScreen inherits Rectangle {
     callback book-opened(string);
     callback edit-requested(string);
     callback settings-requested();
+    callback search-requested();
 
     in property < bool > is-empty: true;
     in property < string > book-count-text: "0 books";
@@ -44,6 +45,26 @@ export component LibraryScreen inherits Rectangle {
                         color: Theme.current.foreground;
                         opacity: 0.6;
                         vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 36px;
+                        height: 36px;
+                        horizontal-stretch: 0;
+                        background: Theme.current.surface_variant;
+                        border-radius: 18px;
+
+                        Text {
+                            text: "🔍";
+                            font-size: 16pt;
+                            color: Theme.current.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.search-requested(); }
+                        }
                     }
 
                     Rectangle {

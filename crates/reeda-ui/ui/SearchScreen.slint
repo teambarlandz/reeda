@@ -1,0 +1,189 @@
+// SearchScreen.slint — library-wide full-text search with result list.
+// See docs/SEARCH_SPEC.md §SEA.
+
+import { Theme } from "./Theme.slint";
+
+export struct SearchHit {
+    book-id: string,
+    book-title: string,
+    chapter-title: string,
+    snippet: string,
+    cfi: string,
+    block-index: int,
+    char-offset: int,
+    term-len: int,
+}
+
+export component SearchScreen inherits Rectangle {
+    callback back-pressed();
+    callback query-changed(string);
+    callback hit-opened(string, string, int, int, int);
+
+    in property < string > query: "";
+    in property < bool > has-query: false;
+    in property < [SearchHit] > hits: [];
+
+    background: Theme.current.background;
+
+    VerticalLayout {
+        // Top bar: back button + query input
+        Rectangle {
+            height: 56px;
+            background: Theme.current.surface;
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 16px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+
+                    Text {
+                        text: "<";
+                        font-size: 20pt;
+                        color: Theme.current.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.back-pressed(); }
+                    }
+                }
+
+                Rectangle {
+                    background: Theme.current.surface_variant;
+                    border-radius: 8px;
+                    horizontal-stretch: 1;
+
+                    TextInput {
+                        text: root.query;
+                        font-size: 14pt;
+                        color: Theme.current.foreground;
+                        horizontal-alignment: left;
+                        vertical-alignment: center;
+
+                        edited => { root.query-changed(self.text); }
+                    }
+                }
+            }
+        }
+
+        // Prompt state (no query yet).
+        if !root.has-query : VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 12px;
+
+            Text {
+                text: "🔍";
+                font-size: 40pt;
+                color: Theme.current.foreground;
+                opacity: 0.4;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Search inside all your books";
+                font-size: 16pt;
+                font-weight: 600;
+                color: Theme.current.foreground;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Phrases and words are matched across the whole library.\nTap a result to open it in the reader.";
+                font-size: 13pt;
+                color: Theme.current.foreground;
+                opacity: 0.6;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+
+        // No-results state.
+        if root.has-query && root.hits.length == 0 : VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 12px;
+
+            Text {
+                text: "No results";
+                font-size: 16pt;
+                font-weight: 600;
+                color: Theme.current.foreground;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Try different words or check the spelling.";
+                font-size: 13pt;
+                color: Theme.current.foreground;
+                opacity: 0.6;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+
+        // Results list.
+        if root.hits.length > 0 : Flickable {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 12px;
+                spacing: 10px;
+
+                for hit in root.hits : Rectangle {
+                    background: Theme.current.surface;
+                    border-radius: 10px;
+                    border-width: 1px;
+                    border-color: Theme.current.surface_variant;
+
+                    VerticalLayout {
+                        padding: 12px;
+                        spacing: 6px;
+
+                        Text {
+                            text: hit.book-title;
+                            font-size: 14pt;
+                            font-weight: 700;
+                            color: Theme.current.foreground;
+                            wrap: word-wrap;
+                        }
+
+                        if hit.chapter-title != "" : Text {
+                            text: hit.chapter-title;
+                            font-size: 11pt;
+                            font-weight: 600;
+                            color: Theme.current.accent;
+                            opacity: 0.8;
+                            wrap: word-wrap;
+                        }
+
+                        Text {
+                            text: hit.snippet;
+                            font-size: 13pt;
+                            color: Theme.current.foreground;
+                            opacity: 0.9;
+                            wrap: word-wrap;
+                        }
+                    }
+
+                    TouchArea {
+                        clicked => {
+                            root.hit-opened(hit.book-id, hit.cfi, hit.block-index, hit.char-offset, hit.term-len);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bottom bar
+        Rectangle {
+            height: 48px;
+            background: Theme.current.surface;
+        }
+    }
+}
