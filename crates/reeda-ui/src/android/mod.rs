@@ -12,6 +12,7 @@ use reeda_core::platform::{Platform, PlatformResult};
 /// Pick a file via SAF (Storage Access Framework).
 ///
 /// Opens `ACTION_OPEN_DOCUMENT` and returns the content URI on success.
+#[allow(dead_code)] // wired into the import flow in the platform milestone
 pub fn pick_file(mime_type: &str) -> PlatformResult<String> {
     AndroidPlatform::default().pick_file(mime_type)
 }
@@ -19,6 +20,7 @@ pub fn pick_file(mime_type: &str) -> PlatformResult<String> {
 /// Read the URI from an incoming intent (share / open-with).
 ///
 /// Returns `None` if no intent data is available.
+#[allow(dead_code)] // wired into the import flow in the platform milestone
 pub fn get_intent_data() -> PlatformResult<Option<String>> {
     AndroidPlatform::default().get_intent_data()
 }
@@ -26,6 +28,7 @@ pub fn get_intent_data() -> PlatformResult<Option<String>> {
 /// Request a runtime permission from the user.
 ///
 /// Returns `true` if granted, `false` if denied.
+#[allow(dead_code)] // wired into the import flow in the platform milestone
 pub fn request_permission(permission: &str) -> PlatformResult<bool> {
     AndroidPlatform::default().request_permission(permission)
 }
