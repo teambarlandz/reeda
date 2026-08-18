@@ -22,6 +22,8 @@ pub mod error;
 pub mod nav;
 /// OPF package document parser.
 pub mod opf;
+/// Deterministic paginator: splits a DocumentModel into pages.
+pub mod paginator;
 /// XHTML to DocumentModel parser.
 pub mod xhtml;
 
