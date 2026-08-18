@@ -465,6 +465,29 @@ impl Database {
         Ok(())
     }
 
+    /// Update an annotation's mutable fields (color, text, snippet).
+    pub fn update_annotation(&self, ann: &Annotation) -> StorageResult<()> {
+        let color_str = ann.color.map(|c| {
+            serde_json::to_string(&c)
+                .unwrap_or_else(|_| "null".into())
+                .trim_matches('"')
+                .to_string()
+        });
+        self.conn.execute(
+            "UPDATE annotations
+             SET color = ?1, text = ?2, snippet = ?3, updated_at = ?4
+             WHERE id = ?5",
+            params![
+                color_str,
+                ann.text,
+                ann.snippet,
+                ann.updated_at.to_rfc3339(),
+                ann.id.0.to_string()
+            ],
+        )?;
+        Ok(())
+    }
+
     // ── Settings CRUD ────────────────────────────────────────────────
 
     /// Get a setting value by key (JSON string).

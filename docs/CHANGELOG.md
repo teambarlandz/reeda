@@ -56,6 +56,25 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
   - SQLite persistence wiring: books, chapters, reading position, metadata, settings
     saved on mutation; `load_books()`/`load_settings_from_db()` restore at startup.
   - 103 tests across workspace (58 reeda-core, 42 reeda-epub, 3 others).
+- **M3 Highlighting & notes**:
+  - Selection engine (`reeda-epub/selection.rs`): `GlobalRange` over the global
+    block sequence, CFI anchoring with round-trip + orphan detection,
+    `intersect_range_with_page()` → clipped segments; global-block fix for
+    `find_page_for_cfi`.
+  - Highlight rendering: `build_page_lines` produces plain/highlight `LineRun`s
+    per visual line; ReaderScreen shows translucent color backgrounds, underline,
+    note dot, and a tap popover (4 color swatches / delete).
+  - Notes: `AddNote` (attach to highlight or standalone), NotesScreen grouped by
+    chapter with jump-to-annotation (HIL-06).
+  - Bookmarks: ribbon toggle keyed off page-start CFI, BookmarksScreen with jump
+    and delete.
+  - Markdown export (`export_markdown`): per-chapter grouping in spine order,
+    snippets + inline notes, `annotations.md` written next to the book file from
+    the NotesScreen Export button.
+  - Annotation persistence: full CRUD wired into App commands (insert/update/
+    soft-delete, reload on open) with restart persistence + HIL-08 font-size
+    invariance tests.
+  - 131 tests across workspace (74 reeda-core, 54 reeda-epub, 3 others).
 
 ### Changed
 

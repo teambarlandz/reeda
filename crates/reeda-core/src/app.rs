@@ -234,6 +234,12 @@ impl App {
                 let snippet = Some(range.short());
                 let ann = Annotation::new_highlight(book_id, range, color, snippet);
                 let ann_id = ann.id;
+                // Persist to SQLite (best-effort).
+                if let Some(db) = &self.db {
+                    if let Err(e) = db.insert_annotation(&ann) {
+                        eprintln!("Warning: failed to persist highlight: {e}");
+                    }
+                }
                 self.annotations.entry(book_id).or_default().push(ann);
                 vec![Event::AnnotationChanged {
                     annotation_id: ann_id,
@@ -250,6 +256,12 @@ impl App {
                             if let Some(c) = color {
                                 ann.color = Some(c);
                                 ann.updated_at = chrono::Utc::now();
+                            }
+                            // Persist to SQLite (best-effort).
+                            if let Some(db) = &self.db {
+                                if let Err(e) = db.update_annotation(ann) {
+                                    eprintln!("Warning: failed to persist color edit: {e}");
+                                }
                             }
                             return vec![Event::AnnotationChanged { annotation_id }];
                         }
@@ -279,6 +291,12 @@ impl App {
                         if let Some(ann) = anns.iter_mut().find(|a| a.id == hl_id) {
                             ann.text = Some(text);
                             ann.updated_at = chrono::Utc::now();
+                            // Persist to SQLite (best-effort).
+                            if let Some(db) = &self.db {
+                                if let Err(e) = db.update_annotation(ann) {
+                                    eprintln!("Warning: failed to persist note: {e}");
+                                }
+                            }
                             return vec![Event::AnnotationChanged {
                                 annotation_id: hl_id,
                             }];
@@ -291,6 +309,12 @@ impl App {
                     // Standalone note.
                     let ann = Annotation::new_note(book_id, None, text);
                     let ann_id = ann.id;
+                    // Persist to SQLite (best-effort).
+                    if let Some(db) = &self.db {
+                        if let Err(e) = db.insert_annotation(&ann) {
+                            eprintln!("Warning: failed to persist note: {e}");
+                        }
+                    }
                     self.annotations.entry(book_id).or_default().push(ann);
                     vec![Event::AnnotationChanged {
                         annotation_id: ann_id,
@@ -309,6 +333,12 @@ impl App {
                     }
                 }
                 if found {
+                    // Persist to SQLite (best-effort).
+                    if let Some(db) = &self.db {
+                        if let Err(e) = db.delete_annotation(annotation_id) {
+                            eprintln!("Warning: failed to persist deletion: {e}");
+                        }
+                    }
                     vec![Event::AnnotationDeleted { annotation_id }]
                 } else {
                     vec![Event::Error {
@@ -339,12 +369,25 @@ impl App {
                     // Remove existing bookmark (soft-delete).
                     anns[idx].deleted_at = Some(chrono::Utc::now());
                     anns[idx].updated_at = chrono::Utc::now();
+                    let removed_id = anns[idx].id;
+                    // Persist to SQLite (best-effort).
+                    if let Some(db) = &self.db {
+                        if let Err(e) = db.delete_annotation(removed_id) {
+                            eprintln!("Warning: failed to persist bookmark removal: {e}");
+                        }
+                    }
                     vec![Event::AnnotationDeleted {
-                        annotation_id: anns[idx].id,
+                        annotation_id: removed_id,
                     }]
                 } else {
                     let ann = Annotation::new_bookmark(book_id, cfi);
                     let ann_id = ann.id;
+                    // Persist to SQLite (best-effort).
+                    if let Some(db) = &self.db {
+                        if let Err(e) = db.insert_annotation(&ann) {
+                            eprintln!("Warning: failed to persist bookmark: {e}");
+                        }
+                    }
                     anns.push(ann);
                     vec![Event::AnnotationChanged {
                         annotation_id: ann_id,
@@ -558,6 +601,16 @@ impl App {
         if let Some(book) = self.library.get_mut(&book_id) {
             book.last_opened_at = Some(chrono::Utc::now());
             self.current_book_id = Some(book_id);
+
+            // Load persisted annotations (best-effort).
+            if let Some(db) = &self.db {
+                match db.list_annotations(book_id) {
+                    Ok(anns) => {
+                        self.annotations.insert(book_id, anns);
+                    }
+                    Err(e) => eprintln!("Warning: failed to load annotations: {e}"),
+                }
+            }
 
             // Restore saved page position.
             let saved_page = book
@@ -1685,5 +1738,67 @@ mod tests {
         let loaded = db.load_settings().unwrap();
         assert_eq!(loaded.theme, crate::models::Theme::Dark);
         assert_eq!(loaded.typography.font_size_pt, 24.0);
+    }
+
+    /// M3.6: highlights must survive an app restart — created via commands,
+    /// persisted to SQLite, reloaded into a fresh App instance, and still
+    /// rendered on the page.
+    #[test]
+    fn annotations_persist_across_restart() {
+        let db = crate::storage::Database::open_memory().unwrap();
+        let mut app = App::new();
+        app.set_db(db);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub.clone(), "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        app.dispatch(Command::OpenBook { book_id });
+        // Highlight "Hello" (block 1, chars 0..5) in chapter 1.
+        let events = app.dispatch(Command::AddHighlight {
+            range: CfiRange::new("epubcfi(/6/4!/4/4:0)".into(), "epubcfi(/6/4!/4/4:5)".into()),
+            color: HighlightColor::Yellow,
+        });
+        let annotation_id = match &events[0] {
+            Event::AnnotationChanged { annotation_id } => *annotation_id,
+            _ => panic!("expected AnnotationChanged"),
+        };
+
+        // Verify the DB row exists.
+        let db = app.db.as_ref().unwrap();
+        assert_eq!(db.list_annotations(book_id).unwrap().len(), 1);
+
+        // Simulate restart: fresh App sharing the same DB.
+        let db = app.db.take().unwrap();
+        let mut app2 = App::new();
+        app2.set_db(db);
+        assert_eq!(app2.load_books().unwrap(), 1);
+
+        // Re-parse the document (import-time parsing is in-memory only).
+        let epub_book = reeda_epub::open_epub(&epub).unwrap();
+        let parsed = crate::reader::epub_book_to_parsed_doc(&epub_book, book_id);
+        app2.parsed_docs.insert(book_id, parsed);
+
+        app2.dispatch(Command::OpenBook { book_id });
+        let snap = app2.snapshot();
+        assert!(
+            snap.annotations.iter().any(|a| a.id == annotation_id),
+            "highlight must reload from DB"
+        );
+        let highlighted: Vec<String> = snap
+            .page_lines
+            .iter()
+            .flatten()
+            .filter(|r| r.highlighted)
+            .map(|r| r.text.clone())
+            .collect();
+        assert!(
+            !highlighted.is_empty(),
+            "highlight must render after restart"
+        );
+        assert_eq!(highlighted.join(""), "Hello");
     }
 }

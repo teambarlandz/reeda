@@ -9,9 +9,9 @@ stack (Slint UI on the Android platform).
 
 ## Status
 
-> 🚧 **Pre-alpha — M2 library & metadata complete.** Import, covers, progress,
-> metadata editing, settings, and SQLite persistence all work. M3 (highlighting)
-> is next.
+> 🚧 **Pre-alpha — M3 highlighting & notes complete.** Highlight in 4 colors,
+> attach notes, bookmark pages, browse annotations, export to Markdown — all
+> persisted to SQLite. M4 (full-text search) is next.
 
 | Area | State |
 |------|-------|
@@ -21,7 +21,8 @@ stack (Slint UI on the Android platform).
 | Android app shell (M0) | Done |
 | EPUB reader core (M1) | Done |
 | Library & metadata (M2) | Done |
-| Highlighting & notes (M3) | Not started |
+| Highlighting & notes (M3) | Done |
+| Full-text search (M4) | Not started |
 | Play Store release | Not started |
 
 ## Feature map (Apple Books parity)

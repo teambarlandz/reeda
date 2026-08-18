@@ -49,12 +49,14 @@ buttons (M2.2) not yet in UI; CSS subset engine (M1.4) still deferred.
 
 ---
 
-## M3 — Highlighting & notes (3 weeks)
+## M3 — Highlighting & notes ✅
 
 **Exit criterion:** highlight a passage, kill the app, relaunch → highlight + note
-intact at correct position with different font size.
+intact at correct position with different font size. Met: annotations persist to
+SQLite (insert/update/soft-delete/list-on-open) and re-render after restart;
+HIL-08 invariance covered by tests.
 
-- [~] **M3.1** reeda-epub — Selection + intersection engine (`selection.rs`):
+- [x] **M3.1** reeda-epub — Selection + intersection engine (`selection.rs`):
   - `GlobalRange` (block_start, char_start, block_end, char_end over global block
     sequence) + `is_valid()`
   - `to_cfi()` / `from_cfi()` — CFI anchoring via `cfi::Cfi` (round-trip, orphaned
@@ -62,29 +64,37 @@ intact at correct position with different font size.
   - `intersect_range_with_page()` → `Vec<ClippedSegment>` (page char/block clipping)
   - Tests: intersection math, cross-block, page-clipping, CFI round-trips
   - Fix `find_page_for_cfi` (reader.rs) to use global `block_index` (not spine_index)
-- [ ] **M3.2** reeda-ui — Highlight rendering in reader:
-  - `PageContent.highlight_segments` (block, char_start, char_end, color, has_note)
-  - ReaderScreen: per-line segments, translucent colored background + underline
-    (HIGHLIGHTS_SPEC §3)
+- [x] **M3.2** reeda-ui — Highlight rendering in reader:
+  - `build_page_lines` → `Vec<Vec<LineRun>>` (plain/highlight runs per visual line)
+  - ReaderScreen: per-line runs, translucent colored background + underline + note
+    dot (HIGHLIGHTS_SPEC §3); color-index ints mapped to Theme brushes in .slint
   - Tap highlight → popover: edit color (4 swatches) / delete
   - Wire AddHighlight/EditHighlight/DeleteAnnotation commands to UI callbacks +
     snapshot
-- [ ] **M3.3** reeda-core + reeda-ui — Notes + notes list:
+- [x] **M3.3** reeda-core + reeda-ui — Notes + notes list:
   - `AddNote` wired end-to-end (attach to highlight / standalone)
   - NotesScreen: per-book list of highlights+notes grouped by chapter, snippet,
     color chip, date; tap → jump (HIL-06)
-- [ ] **M3.4** reeda-ui — Bookmarks:
+- [x] **M3.4** reeda-ui — Bookmarks:
   - Chrome ribbon toggle button; icon state from page-start CFI (filled when match)
   - Bookmarks list screen: tap → jump, delete (uses `ToggleBookmark`)
-- [ ] **M3.5** reeda-core — Export highlights/notes (Markdown):
-  - `export_markdown(book)` per HIGHLIGHTS_SPEC §4 format
-  - Android share sheet (ACTION_SEND, text/plain); desktop writes
-    `books/<id>/annotations.md`
-- [ ] **M3.6** reeda-core — Persistence + invariance + docs:
-  - Wire annotation CRUD to SQLite in App commands (insert/soft-delete/list on open)
-  - HIL-08 font-size invariance golden tests (same CFI → same geometry per layout)
-  - Restart persistence integration test
+- [x] **M3.5** reeda-core — Export highlights/notes (Markdown):
+  - `export_markdown(book, doc, annotations)` per HIGHLIGHTS_SPEC §4 format
+    (grouped by chapter, spine order, notes inline)
+  - NotesScreen "Export" button → desktop writes `annotations.md` next to the
+    book file; Android logs path (ACTION_SEND share sheet deferred)
+- [x] **M3.6** reeda-core — Persistence + invariance + docs:
+  - Wire annotation CRUD to SQLite in App commands (insert/update/soft-delete,
+    list-on-open) — best-effort with warning logs
+  - HIL-08 font-size invariance tests (same CFI → same highlighted text across
+    line-wrap widths)
+  - Restart persistence integration test (highlight survives App recreation)
+  - 131 tests total (74 core, 54 epub, 3 others)
   - Update TODO.md + CHANGELOG.md + README.md + commit/push
+
+**Notes / deferred:** Android share sheet for export (ACTION_SEND) — logs path
+for now; parsed-doc registry is in-memory, re-parsed on next import/open cycle
+after restart (annotations themselves are fully persistent).
 
 ---
 

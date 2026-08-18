@@ -965,4 +965,45 @@ mod tests {
         let idx = find_page_for_cfi(&pages, &cfi, 2);
         assert_eq!(idx, Some(0));
     }
+
+    /// HIL-08: the highlighted text content must not depend on typography.
+    /// The same CFI range yields identical highlighted text at any
+    /// chars-per-line (line wrapping) setting.
+    #[test]
+    fn hil_08_highlight_content_invariant_across_wrapping() {
+        let doc = test_doc();
+        let ann = test_highlight_annotation(&doc);
+
+        let collect_highlighted = |chars_per_line: usize| -> String {
+            let layout = PageLayout {
+                width: 120.0,
+                height: 240.0,
+                font_size: 18.0,
+                line_height: 1.5,
+                margin_h: 4.0,
+                margin_v: 4.0,
+            };
+            let pages = paginate_doc(&doc, &layout);
+            let mut text = String::new();
+            for page_idx in 0..pages.pages.len() {
+                let lines =
+                    build_page_lines(&doc, &pages, page_idx, chars_per_line, &[ann.clone()]);
+                for line in lines {
+                    for run in line {
+                        if run.highlighted {
+                            text.push_str(&run.text);
+                        }
+                    }
+                }
+            }
+            text
+        };
+
+        let narrow = collect_highlighted(8);
+        let wide = collect_highlighted(40);
+        assert!(!narrow.is_empty());
+        assert_eq!(narrow, wide);
+        // Block 1 chars 5..15 ("This is the first …").
+        assert_eq!(narrow, "is the fir");
+    }
 }
