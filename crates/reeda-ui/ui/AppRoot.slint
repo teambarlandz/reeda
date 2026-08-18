@@ -6,6 +6,7 @@ import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
 import { ReaderScreen, LineRun } from "./ReaderScreen.slint";
 import { NotesScreen, NotesEntry } from "./NotesScreen.slint";
+import { BookmarksScreen, BookmarkEntry } from "./BookmarksScreen.slint";
 import { SettingsScreen } from "./SettingsScreen.slint";
 import { ErrorDialog, MetadataDialog, NoteDialog } from "./Dialogs.slint";
 
@@ -19,11 +20,16 @@ export component AppRoot inherits Window {
     in-out property < bool > show-reader: false;
     in-out property < bool > show-settings: false;
     in-out property < bool > show-notes: false;
+    in-out property < bool > show-bookmarks: false;
 
     // ── Notes list ──────────────────────────────────────────────────
     in-out property < [NotesEntry] > notes-entries: [];
     in-out property < bool > note-dialog-open: false;
     in-out property < string > note-dialog-text: "";
+
+    // ── Bookmarks ───────────────────────────────────────────────────
+    in-out property < [BookmarkEntry] > bookmark-entries: [];
+    in-out property < bool > reader-bookmarked: false;
 
     // ── Error dialog ────────────────────────────────────────────────
     in-out property < string > error-message: "";
@@ -71,6 +77,11 @@ export component AppRoot inherits Window {
     callback notes-requested();
     callback note-saved(string);
     callback note-cancelled();
+    callback bookmarks-requested();
+    callback bookmarks-back();
+    callback bookmarks-jump(string);
+    callback bookmark-delete(string);
+    callback toggle-bookmark();
     callback import-requested();
     callback metadata-requested(string);
     callback metadata-saved(string, string);
@@ -113,6 +124,7 @@ export component AppRoot inherits Window {
         page-font-size: root.reader-page-font-size;
         page-line-height: root.reader-page-line-height;
         edit-popover-visible: root.reader-edit-popover-visible;
+        bookmarked: root.reader-bookmarked;
 
         back-pressed => {
             root.show-reader = false;
@@ -132,6 +144,12 @@ export component AppRoot inherits Window {
             root.show-notes = true;
             root.notes-requested();
         }
+        bookmarks-requested => {
+            root.show-reader = false;
+            root.show-bookmarks = true;
+            root.bookmarks-requested();
+        }
+        toggle-bookmark => { root.toggle-bookmark(); }
         close-popover => { root.reader-edit-popover-visible = false; }
     }
 
@@ -150,6 +168,25 @@ export component AppRoot inherits Window {
             root.show-reader = true;
             root.notes-jump(id);
         }
+    }
+
+    if root.show-bookmarks : BookmarksScreen {
+        book-title: root.book-title;
+        entries: root.bookmark-entries;
+
+        back-pressed => {
+            root.show-bookmarks = false;
+            root.show-reader = true;
+            root.bookmarks-back();
+        }
+
+        jump-to(id) => {
+            root.show-bookmarks = false;
+            root.show-reader = true;
+            root.bookmarks-jump(id);
+        }
+
+        delete(id) => { root.bookmark-delete(id); }
     }
 
     if root.show-settings : SettingsScreen {

@@ -21,10 +21,13 @@ export component ReaderScreen inherits Rectangle {
     callback delete-highlight();
     callback note-requested();
     callback notes-requested();
+    callback bookmarks-requested();
+    callback toggle-bookmark();
     callback close-popover();
 
     in property < bool > chrome-visible: false;
     in property < string > book-title: "";
+    in property < bool > bookmarked: false;
     in property < string > page-text: "";
     in property < float > progress-pct: 0.0;
     in property < string > progress-label: "0%";
@@ -69,6 +72,23 @@ export component ReaderScreen inherits Rectangle {
                     font-weight: 600;
                     color: Theme.current.foreground;
                     horizontal-stretch: 1;
+                }
+
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+
+                    Text {
+                        text: root.bookmarked ? "🔖" : "☰";
+                        font-size: 18pt;
+                        color: root.bookmarked ? Theme.current.accent : Theme.current.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.toggle-bookmark(); }
+                    }
                 }
             }
         }
@@ -177,15 +197,32 @@ export component ReaderScreen inherits Rectangle {
                     opacity: 0.7;
                 }
 
-                Text {
-                    text: "Notes";
-                    font-size: 12pt;
-                    font-weight: 600;
-                    color: Theme.current.accent;
-                    vertical-alignment: center;
+                HorizontalLayout {
+                    spacing: 16px;
+                    alignment: end;
 
-                    TouchArea {
-                        clicked => { root.notes-requested(); }
+                    Text {
+                        text: "Bookmarks";
+                        font-size: 12pt;
+                        font-weight: 600;
+                        color: Theme.current.accent;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => { root.bookmarks-requested(); }
+                        }
+                    }
+
+                    Text {
+                        text: "Notes";
+                        font-size: 12pt;
+                        font-weight: 600;
+                        color: Theme.current.accent;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => { root.notes-requested(); }
+                        }
                     }
                 }
             }

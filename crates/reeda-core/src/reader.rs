@@ -323,17 +323,39 @@ fn build_line(
     runs
 }
 
+/// Get the CFI of a page's start position (used for bookmark toggling).
+pub fn page_start_cfi(pages: &Pages, page_idx: u32, spine_length: u32) -> String {
+    paginator::cfi_of_page_start(pages, page_idx as usize, spine_length).0
+}
+
+/// Build the bookmarks list entries for a book (chapter, date, position).
+pub fn bookmark_entries(doc: &DocumentModel, annotations: &[Annotation]) -> Vec<NotesEntry> {
+    entries_for(doc, annotations, true)
+}
+
 /// Build the notes/highlights list entries for a book.
 ///
 /// Flattens annotations into `NotesEntry` display rows, sorted by the
 /// global block position of each annotation's start CFI (groups entries by
 /// chapter naturally, chapters being in spine order).
 pub fn notes_entries(doc: &DocumentModel, annotations: &[Annotation]) -> Vec<NotesEntry> {
+    entries_for(doc, annotations, false)
+}
+
+fn entries_for(
+    doc: &DocumentModel,
+    annotations: &[Annotation],
+    bookmarks: bool,
+) -> Vec<NotesEntry> {
     let spine_length = doc.chapters.len() as u32;
     let mut with_pos: Vec<(usize, NotesEntry)> = Vec::new();
 
     for ann in annotations {
-        if ann.deleted_at.is_some() || ann.kind == AnnotationKind::Bookmark {
+        if ann.deleted_at.is_some() {
+            continue;
+        }
+        let is_bookmark = ann.kind == AnnotationKind::Bookmark;
+        if is_bookmark != bookmarks {
             continue;
         }
         let is_highlight = ann.kind == AnnotationKind::Highlight;
@@ -906,5 +928,41 @@ mod tests {
 
         let entries = notes_entries(&doc, &[hl, bm]);
         assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn bookmark_entries_only_bookmarks() {
+        let doc = test_doc();
+        let range = GlobalRange::new(1, 0, 1, 5).to_cfi();
+        let hl = Annotation::new_highlight(
+            BookId::new(),
+            crate::models::CfiRange::new(range.start.0, range.end.0),
+            HighlightColor::Yellow,
+            Some("snippet".into()),
+        );
+        let bm = Annotation::new_bookmark(BookId::new(), "/6/4".into());
+
+        let entries = bookmark_entries(&doc, &[hl, bm.clone()]);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].annotation_id, bm.id.0.to_string());
+        assert!(!entries[0].is_highlight);
+    }
+
+    #[test]
+    fn page_start_cfi_round_trip() {
+        let doc = test_doc();
+        let layout = PageLayout {
+            width: 200.0,
+            height: 400.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        let cfi = page_start_cfi(&pages, 0, 2);
+        assert!(cfi.starts_with("epubcfi("));
+        let idx = find_page_for_cfi(&pages, &cfi, 2);
+        assert_eq!(idx, Some(0));
     }
 }

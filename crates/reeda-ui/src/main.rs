@@ -334,6 +334,61 @@ fn main() {
         }
     });
 
+    // ── Bookmarks ───────────────────────────────────────────────────
+    app.on_toggle_bookmark({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let cfi = core_cell.borrow().snapshot().page_start_cfi;
+            if !cfi.is_empty() {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::ToggleBookmark { cfi });
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_bookmarks_requested({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_bookmarks_jump({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |id: slint::SharedString| {
+            if let Ok(annotation_id) = id.to_string().parse() {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::JumpToAnnotation { annotation_id });
+            }
+            let app = weak.unwrap();
+            app.set_show_bookmarks(false);
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_bookmark_delete({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |id: slint::SharedString| {
+            if let Ok(annotation_id) = id.to_string().parse() {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::DeleteAnnotation { annotation_id });
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -413,6 +468,30 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         })
         .collect();
     app.set_notes_entries(slint::ModelRc::from(notes_model.as_slice()));
+
+    // Bookmarks state.
+    let bookmarked = snap.annotations.iter().any(|a| {
+        a.kind == reeda_core::AnnotationKind::Bookmark
+            && a.deleted_at.is_none()
+            && a.cfi
+                .as_ref()
+                .is_some_and(|r| r.start == snap.page_start_cfi)
+    });
+    app.set_reader_bookmarked(bookmarked);
+
+    let bookmark_model: Vec<BookmarkEntry> = snap
+        .bookmarks_entries
+        .iter()
+        .map(|e| {
+            let short_date: String = e.created_at.chars().take(10).collect();
+            BookmarkEntry {
+                annotation_id: slint::SharedString::from(&e.annotation_id),
+                chapter_title: slint::SharedString::from(&e.chapter_title),
+                created_at: slint::SharedString::from(short_date),
+            }
+        })
+        .collect();
+    app.set_bookmark_entries(slint::ModelRc::from(bookmark_model.as_slice()));
 
     // Library state.
     let non_deleted: Vec<_> = snap

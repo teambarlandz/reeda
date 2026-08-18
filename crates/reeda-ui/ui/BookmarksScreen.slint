@@ -1,0 +1,153 @@
+// BookmarksScreen.slint — per-book bookmarks list.
+// See docs/HIGHLIGHTS_SPEC.md §5.
+
+import { Theme } from "./Theme.slint";
+
+export struct BookmarkEntry {
+    annotation-id: string,
+    chapter-title: string,
+    created-at: string,
+}
+
+export component BookmarksScreen inherits Rectangle {
+    callback back-pressed();
+    callback jump-to(string);
+    callback delete(string);
+
+    in property < string > book-title: "";
+    in property < [BookmarkEntry] > entries: [];
+
+    background: Theme.current.background;
+
+    VerticalLayout {
+        // Top bar
+        Rectangle {
+            height: 56px;
+            background: Theme.current.surface;
+
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 16px;
+                spacing: 12px;
+
+                Rectangle {
+                    width: 40px;
+                    height: 40px;
+
+                    Text {
+                        text: "<";
+                        font-size: 20pt;
+                        color: Theme.current.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.back-pressed(); }
+                    }
+                }
+
+                Text {
+                    text: root.book-title;
+                    font-size: 16pt;
+                    font-weight: 600;
+                    color: Theme.current.foreground;
+                    horizontal-stretch: 1;
+                }
+            }
+        }
+
+        // Empty state
+        if root.entries.length == 0 : VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 12px;
+
+            Text {
+                text: "No bookmarks yet";
+                font-size: 16pt;
+                font-weight: 600;
+                color: Theme.current.foreground;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Tap the ribbon icon in the reader top bar to bookmark a page.";
+                font-size: 13pt;
+                color: Theme.current.foreground;
+                opacity: 0.6;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+
+        // List
+        if root.entries.length > 0 : Flickable {
+            horizontal-stretch: 1;
+
+            VerticalLayout {
+                padding: 12px;
+                spacing: 10px;
+
+                for entry in root.entries : Rectangle {
+                    background: Theme.current.surface;
+                    border-radius: 10px;
+                    border-width: 1px;
+                    border-color: Theme.current.surface_variant;
+
+                    HorizontalLayout {
+                        padding: 12px;
+                        spacing: 8px;
+                        alignment: start;
+
+                        Text {
+                            text: "🔖";
+                            font-size: 14pt;
+                            vertical-alignment: center;
+                        }
+
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: 2px;
+
+                            Text {
+                                text: entry.chapter-title != "" ? entry.chapter-title : "Book";
+                                font-size: 13pt;
+                                font-weight: 600;
+                                color: Theme.current.foreground;
+                            }
+
+                            Text {
+                                text: entry.created-at;
+                                font-size: 11pt;
+                                color: Theme.current.foreground;
+                                opacity: 0.6;
+                            }
+                        }
+
+                        Text {
+                            text: "×";
+                            font-size: 16pt;
+                            color: Theme.current.error;
+                            vertical-alignment: center;
+
+                            TouchArea {
+                                clicked => { root.delete(entry.annotation-id); }
+                            }
+                        }
+                    }
+
+                    TouchArea {
+                        clicked => { root.jump-to(entry.annotation-id); }
+                    }
+                }
+            }
+        }
+
+        // Bottom bar
+        Rectangle {
+            height: 48px;
+            background: Theme.current.surface;
+        }
+    }
+}

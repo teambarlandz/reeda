@@ -40,6 +40,10 @@ pub struct StateSnapshot {
     pub page_lines: Vec<Vec<LineRun>>,
     /// Notes/highlights list entries for the current book.
     pub notes_entries: Vec<NotesEntry>,
+    /// Bookmarks list entries for the current book.
+    pub bookmarks_entries: Vec<NotesEntry>,
+    /// CFI of the current page's start (for bookmark toggle state).
+    pub page_start_cfi: String,
     /// Table of contents labels for the current book.
     pub toc_labels: Vec<String>,
 }
@@ -60,6 +64,8 @@ impl Default for StateSnapshot {
             page_blocks: Vec::new(),
             page_lines: Vec::new(),
             notes_entries: Vec::new(),
+            bookmarks_entries: Vec::new(),
+            page_start_cfi: String::new(),
             toc_labels: Vec::new(),
         }
     }
@@ -486,17 +492,28 @@ impl App {
             };
 
         // Notes list entries for the current book.
-        let notes_entries = if let Some(book_id) = self.current_book_id {
-            if let Some(parsed) = self.parsed_docs.get(&book_id) {
-                let annotations: Vec<Annotation> =
-                    self.annotations.get(&book_id).cloned().unwrap_or_default();
-                reader::notes_entries(&parsed.document, &annotations)
+        let (notes_entries, bookmarks_entries, page_start_cfi) =
+            if let Some(book_id) = self.current_book_id {
+                if let Some(parsed) = self.parsed_docs.get(&book_id) {
+                    let annotations: Vec<Annotation> =
+                        self.annotations.get(&book_id).cloned().unwrap_or_default();
+                    let spine_len = parsed.spine.len() as u32;
+                    let cfi = self
+                        .reader_state
+                        .as_ref()
+                        .map(|rs| reader::page_start_cfi(&rs.pages, self.current_page, spine_len))
+                        .unwrap_or_default();
+                    (
+                        reader::notes_entries(&parsed.document, &annotations),
+                        reader::bookmark_entries(&parsed.document, &annotations),
+                        cfi,
+                    )
+                } else {
+                    (Vec::new(), Vec::new(), String::new())
+                }
             } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
+                (Vec::new(), Vec::new(), String::new())
+            };
 
         StateSnapshot {
             library,
@@ -512,6 +529,8 @@ impl App {
             page_blocks,
             page_lines,
             notes_entries,
+            bookmarks_entries,
+            page_start_cfi,
             toc_labels,
         }
     }
