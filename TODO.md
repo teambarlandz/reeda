@@ -183,7 +183,7 @@ focus) verified on emulator/device as a follow-up.
     (FakeTtsHost in tests/desktop)
   - Tests: start/pause/resume/stop with fake host, word-highlight events, auto
     page turn, next-chapter advance, retry → Error state
-- [ ] **M5.4** reeda-ui — Reader TTS bar:
+- [x] **M5.4** reeda-ui — Reader TTS bar:
   - Bottom bar in ReaderScreen: play/pause, stop, skip chapter fwd/back, speed
     chip (cycles 0.5–2.5); visible from narration state in snapshot
   - main.rs wiring: commands → dispatch, bar state from snapshot; word highlight
@@ -195,6 +195,17 @@ focus) verified on emulator/device as a follow-up.
     marshalled to engine; Java shim `android/TtsShim.java`; foreground-service
     media notification + audio focus + wake-lock stubs per TTS_SPEC §2
   - CI compile check (`build-apk.yml`); device verification follow-up
+  - Steps: (1) Cargo.toml: optional `jni` + `ndk-context` deps, wire
+    `platform-android` feature; (2) `src/android.rs`: `AndroidTtsHost` —
+    vm/activity from `ndk_context`, GlobalRef to TtsShim, binder-thread event
+    queue drained by `poll()`, `#[no_mangle] extern "system"` JNI callback
+    symbol; (3) `android/src/io/reeda/app/TtsShim.java` (≤100 lines, minSdk 26
+    `onRangeStart`); (4) reeda-core `set_tts_host` → `pub`; (5) reeda-ui:
+    optional reeda-tts dep, `android::create_tts_host`, main.rs init on
+    `platform-android`; (6) build-apk.yml: APK job uses
+    `--no-default-features --features platform-android`, add tts compile-check
+    job; (7) verify `cargo check -p reeda-tts --no-default-features --features
+    platform-android` on host + full test suite, commit/push
 - [ ] **M5.6** Tests + docs + close:
   - Full workspace tests; update TTS_SPEC status, CHANGELOG.md, README.md
     status; TODO checkboxes; commit/push
