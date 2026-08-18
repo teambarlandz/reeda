@@ -24,6 +24,23 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
   ReaderScreen.slint (page canvas + chrome overlay), Dialogs.slint (error dialog).
 - **M0 Android stubs**: UI-layer SAF picker, intent reader, permission request stubs gated
   behind `platform-android` feature.
+- **M1 EPUB reader core**:
+  - EPUB ZIP container reader with zip-slip guard and decompression bomb guard.
+  - OPF metadata/manifest/spine parser supporting EPUB2 and EPUB3.
+  - Navigation parser: EPUB3 `nav.xhtml` + EPUB2 `toc.ncx` → unified `TableOfContents`.
+  - XHTML → `DocumentModel` parser (headings, paragraphs, lists, code blocks, images, links,
+    bold/italic/strikethrough, subscript/superscript).
+  - CFI (Canonical Fragment Identifier) position model with parse/serialize and range support.
+  - Deterministic paginator: block-aware character-count pagination with layout hash for cache
+    keying, page_containing/cfi_of_page_start lookup, and monotonic progress tracking.
+  - `ParsedDocRegistry` in reeda-core: bridges reeda-epub parsing into App state.
+  - `Import` command: reads EPUB file, parses, extracts metadata, adds to library.
+  - `OpenBook` triggers pagination, exposes page_text/page_blocks in `StateSnapshot`.
+  - `SetTypography` triggers re-pagination; `JumpTo` uses CFI→page lookup.
+  - Reader screen UI: AppRoot.slint forwards page-text, book-title, progress to ReaderScreen.
+  - `main.rs` wires Slint callbacks (next/prev/back) to `App::dispatch` via `Rc<RefCell<App>>`.
+  - `update_ui()` pushes `StateSnapshot` into Slint properties after each dispatch.
+  - 84 tests across workspace (40 reeda-core, 40 reeda-epub, 4 others).
 
 ### Changed
 
