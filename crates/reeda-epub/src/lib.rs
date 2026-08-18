@@ -24,6 +24,8 @@ pub mod nav;
 pub mod opf;
 /// Deterministic paginator: splits a DocumentModel into pages.
 pub mod paginator;
+/// Text selection & highlight intersection engine.
+pub mod selection;
 /// XHTML to DocumentModel parser.
 pub mod xhtml;
 

@@ -225,9 +225,9 @@ pub fn paginate_doc(doc: &DocumentModel, layout: &PageLayout) -> Pages {
 pub fn find_page_for_cfi(pages: &Pages, cfi_str: &str, spine_length: u32) -> Option<u32> {
     let cfi = reeda_epub::cfi::Cfi(cfi_str.to_string());
     if let Some(loc) = cfi.to_locator(spine_length) {
-        let block = loc.spine_index; // approximate: use spine index as block search key
+        let block = loc.block_index as usize; // global block index (selection.rs convention)
         for (i, page) in pages.pages.iter().enumerate() {
-            if page.first_block as u32 <= block && block <= page.last_block as u32 {
+            if page.first_block <= block && block <= page.last_block {
                 return Some(i as u32);
             }
         }
