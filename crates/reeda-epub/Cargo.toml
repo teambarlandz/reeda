@@ -8,3 +8,15 @@ repository.workspace = true
 description = "Reeda EPUB engine: container, OPF/nav parsing, XHTML model, CSS subset, pagination, CFI."
 
 [dependencies]
+thiserror.workspace = true
+serde.workspace = true
+zip = "2"
+roxmltree = "0.20"
+urlencoding = "2"
+log = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = []
