@@ -29,6 +29,11 @@ export component AppRoot inherits Window {
     in-out property < string > search-query: "";
     in-out property < bool > search-has-query: false;
 
+    // ── In-reader search ────────────────────────────────────────────
+    in-out property < bool > reader-search-open: false;
+    in-out property < string > reader-search-query: "";
+    in-out property < string > reader-search-count: "";
+
     // ── Notes list ──────────────────────────────────────────────────
     in-out property < [NotesEntry] > notes-entries: [];
     in-out property < bool > note-dialog-open: false;
@@ -102,6 +107,11 @@ export component AppRoot inherits Window {
     callback search-back();
     callback search-query-changed(string);
     callback search-hit-opened(string, string, int, int, int);
+    callback reader-search-toggled();
+    callback reader-search-query-changed(string);
+    callback reader-search-next();
+    callback reader-search-prev();
+    callback reader-search-close();
 
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
@@ -143,6 +153,9 @@ export component AppRoot inherits Window {
         page-line-height: root.reader-page-line-height;
         edit-popover-visible: root.reader-edit-popover-visible;
         bookmarked: root.reader-bookmarked;
+        search-open: root.reader-search-open;
+        search-query: root.reader-search-query;
+        search-count: root.reader-search-count;
 
         back-pressed => {
             root.show-reader = false;
@@ -169,6 +182,32 @@ export component AppRoot inherits Window {
         }
         toggle-bookmark => { root.toggle-bookmark(); }
         close-popover => { root.reader-edit-popover-visible = false; }
+
+        search-toggled => {
+            root.reader-search-open = !root.reader-search-open;
+            if !root.reader-search-open {
+                root.reader-search-query = "";
+                root.reader-search-count = "";
+                root.reader-search-close();
+            } else {
+                root.reader-search-toggled();
+            }
+        }
+
+        search-query-changed(t) => {
+            root.reader-search-query = t;
+            root.reader-search-query-changed(t);
+        }
+
+        search-next => { root.reader-search-next(); }
+        search-prev => { root.reader-search-prev(); }
+
+        search-close => {
+            root.reader-search-open = false;
+            root.reader-search-query = "";
+            root.reader-search-count = "";
+            root.reader-search-close();
+        }
     }
 
     if root.show-notes : NotesScreen {

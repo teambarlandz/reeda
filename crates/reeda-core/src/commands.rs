@@ -88,6 +88,18 @@ pub enum Command {
         term_len: u32,
     },
 
+    /// Search within the currently open book (in-reader search, SEA-05).
+    ReaderSearch { query: String },
+
+    /// Jump to the next in-book match.
+    ReaderSearchNext,
+
+    /// Jump to the previous in-book match.
+    ReaderSearchPrev,
+
+    /// Close the in-reader search overlay and clear its state.
+    ReaderSearchClose,
+
     // ── TTS ──────────────────────────────────────────────────────────
     /// Start narration from the current position (or a specific chapter).
     StartNarration {

@@ -102,7 +102,7 @@ after restart (annotations themselves are fully persistent).
 
 **Exit criterion:** 50-book fixture library; query finds ranked results < 1 s.
 
-- [ ] **M4.1** reeda-search — Tantivy index core (`index.rs`):
+- [x] **M4.1** reeda-search — Tantivy index core (`index.rs`):
   - Schema per SEARCH_SPEC §2: `book_id` (raw term), `spine_index`/`block_index`/
     `char_offset` (u64, fast), `title` (TEXT), `body` (TEXT), `chapter_title`
     (stored), `language` (stored)
@@ -113,18 +113,18 @@ after restart (annotations themselves are fully persistent).
     locator CFI (open-at-match, SEA-03)
   - Tests: insert → search finds, phrase query, per-book filter, delete-by-book,
     rebuild idempotence, locator round-trip
-- [ ] **M4.2** reeda-search — Analyzer + query layer (`query.rs`):
+- [x] **M4.2** reeda-search — Analyzer + query layer (`query.rs`):
   - Lowercase + unicode segmentation; English stopwords; phrase + AND default
   - Title boost 2.0 in query construction (spec §5)
   - Tests: relevance sanity (expected top-N), phrase/AND behavior, empty/whitespace
     query handling, cap at 200
-- [ ] **M4.3** reeda-core — Index orchestration in App:
+- [x] **M4.3** reeda-core — Index orchestration in App:
   - Index path under data dir; `index_book` on ImportFinished, `delete_book` on
     DeleteBook (spec §4 lifecycle)
   - `SearchIndex` handle in App (lazy open), status flags (indexed/unindexed)
   - Tests: import → query finds content, delete → removed from results,
     re-import replaces documents
-- [ ] **M4.4** reeda-core — Search command/events/snapshot + open-at-match:
+- [x] **M4.4** reeda-core — Search command/events/snapshot + open-at-match:
   - `Command::Search { query, scope }` (library-wide / in-book), `Event::SearchResults`
   - `StateSnapshot.search_entries` (book title, chapter, snippet, locator) +
     `transient_highlight` (CfiRange rendered like an annotation, not persisted)
@@ -132,12 +132,12 @@ after restart (annotations themselves are fully persistent).
     and cleared on page turn
   - Tests: search results in snapshot, open-at-match jumps + renders transient
     highlight, transient cleared on turn
-- [ ] **M4.5** reeda-ui — Library search screen:
+- [x] **M4.5** reeda-ui — Library search screen:
   - Search icon on Library → full-screen SearchScreen.slint (query-as-you-type,
     debounce 250 ms, results grouped by book with chapter headings)
   - main.rs: debounce timer, Search command dispatch, tap result → open at match
   - Tests/build: UI compiles; manual smoke
-- [ ] **M4.6** reeda-ui — In-reader search overlay:
+- [x] **M4.6** reeda-ui — In-reader search overlay:
   - Chrome search icon → overlay panel (hits list + prev/next arrows)
   - Term highlight synced with reader via transient_highlight
 - [ ] **M4.7** Performance fixtures + docs:

@@ -53,6 +53,19 @@ pub struct StateSnapshot {
     pub last_search: Option<SearchResultsView>,
     /// Transient highlight range (current search match), None when inactive.
     pub transient_highlight: Option<CfiRange>,
+    /// In-reader search overlay state (None when closed).
+    pub reader_search: Option<ReaderSearchView>,
+}
+
+/// In-reader search state exposed to the UI.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct ReaderSearchView {
+    /// The active query.
+    pub query: String,
+    /// 0-based index of the currently shown match.
+    pub index: u32,
+    /// Total matches in the current book.
+    pub total: u32,
 }
 
 impl Default for StateSnapshot {
@@ -76,6 +89,7 @@ impl Default for StateSnapshot {
             toc_labels: Vec::new(),
             last_search: None,
             transient_highlight: None,
+            reader_search: None,
         }
     }
 }
@@ -118,6 +132,19 @@ pub struct App {
     last_search: Option<SearchResultsView>,
     /// Transient highlight range (current search match), cleared on navigation.
     transient_highlight: Option<CfiRange>,
+    /// In-reader search state (current book only).
+    reader_search: Option<ReaderSearchState>,
+}
+
+/// State of the in-reader search overlay.
+#[derive(Debug, Clone)]
+struct ReaderSearchState {
+    /// The active query.
+    query: String,
+    /// Hits in the current book (ranked).
+    hits: Vec<SearchHitView>,
+    /// Index of the currently shown hit.
+    index: usize,
 }
 
 impl Default for App {
@@ -145,6 +172,7 @@ impl App {
             search: None,
             last_search: None,
             transient_highlight: None,
+            reader_search: None,
         }
     }
 
@@ -429,6 +457,18 @@ impl App {
                 term_len,
             } => self.open_search_hit(book_id, cfi, block_index, char_offset, term_len),
 
+            Command::ReaderSearch { query } => self.reader_search(&query),
+
+            Command::ReaderSearchNext => self.reader_search_step(1),
+
+            Command::ReaderSearchPrev => self.reader_search_step(-1),
+
+            Command::ReaderSearchClose => {
+                self.reader_search = None;
+                self.transient_highlight = None;
+                vec![]
+            }
+
             // ── TTS ──────────────────────────────────────────────────
             Command::StartNarration { .. } => {
                 // TODO: TTS engine (M5)
@@ -610,6 +650,11 @@ impl App {
             toc_labels,
             last_search: self.last_search.clone(),
             transient_highlight: self.transient_highlight.clone(),
+            reader_search: self.reader_search.as_ref().map(|rs| ReaderSearchView {
+                query: rs.query.clone(),
+                index: rs.index as u32,
+                total: rs.hits.len() as u32,
+            }),
         }
     }
 
@@ -681,6 +726,7 @@ impl App {
         self.total_pages = 0;
         self.reader_state = None;
         self.transient_highlight = None;
+        self.reader_search = None;
         vec![]
     }
 
@@ -806,24 +852,7 @@ impl App {
         };
         let view = SearchResultsView {
             total: res.total,
-            hits: res
-                .hits
-                .iter()
-                .map(|h| SearchHitView {
-                    book_id: h.book_id.parse().unwrap_or_else(|_| BookId::new()),
-                    book_title: self
-                        .library
-                        .get(&h.book_id.parse().unwrap_or_else(|_| BookId::new()))
-                        .map(|b| b.title.clone())
-                        .unwrap_or_else(|| h.title.clone()),
-                    chapter_title: h.chapter_title.clone(),
-                    snippet: h.snippet.clone(),
-                    cfi: h.cfi.start.0.clone(),
-                    block_index: h.block_index,
-                    char_offset: h.char_offset,
-                    term_len: h.term_len,
-                })
-                .collect(),
+            hits: res.hits.iter().map(|h| self.hit_to_view(h)).collect(),
         };
         let ids: Vec<BookId> = {
             let mut seen = std::collections::HashSet::new();
@@ -854,24 +883,16 @@ impl App {
             if self.current_book_id != Some(book_id) {
                 self.open_book(book_id);
             }
-            // Clamp the transient range to the block's text.
-            let transient = self
-                .current_book_id
-                .and_then(|id| self.parsed_docs.get(&id))
-                .and_then(|pd| pd.document.block_text(block_index as usize))
-                .map(|text| {
-                    let start = (char_offset as usize).min(text.len());
-                    let end = (start + term_len as usize).min(text.len()).max(start);
-                    GlobalRange::new(block_index as usize, start, block_index as usize, end)
-                        .to_cfi()
-                })
-                .map(|range| CfiRange {
-                    start: range.start.0,
-                    end: range.end.0,
-                });
-            if let Some(transient) = transient {
-                self.transient_highlight = Some(transient);
-            }
+            self.set_transient_from_view(&SearchHitView {
+                book_id,
+                book_title: String::new(),
+                chapter_title: String::new(),
+                snippet: String::new(),
+                cfi: cfi.clone(),
+                block_index,
+                char_offset,
+                term_len,
+            });
             let mut events = self.jump_to(cfi);
             events.push(Event::SearchResultOpened { book_id });
             events
@@ -880,6 +901,104 @@ impl App {
                 message: format!("Book {book_id} not found"),
             }]
         }
+    }
+
+    /// Convert a raw search hit into a UI view (resolving book titles).
+    fn hit_to_view(&self, h: &reeda_search::index::SearchHit) -> SearchHitView {
+        let book_id = h.book_id.parse().unwrap_or_else(|_| BookId::new());
+        SearchHitView {
+            book_id,
+            book_title: self
+                .library
+                .get(&book_id)
+                .map(|b| b.title.clone())
+                .unwrap_or_else(|| h.title.clone()),
+            chapter_title: h.chapter_title.clone(),
+            snippet: h.snippet.clone(),
+            cfi: h.cfi.start.0.clone(),
+            block_index: h.block_index,
+            char_offset: h.char_offset,
+            term_len: h.term_len,
+        }
+    }
+
+    /// Set the transient highlight from a hit (clamped to the block's text).
+    fn set_transient_from_view(&mut self, hit: &SearchHitView) {
+        let transient = self
+            .current_book_id
+            .and_then(|id| self.parsed_docs.get(&id))
+            .and_then(|pd| pd.document.block_text(hit.block_index as usize))
+            .map(|text| {
+                let start = (hit.char_offset as usize).min(text.len());
+                let end = (start + hit.term_len as usize).min(text.len()).max(start);
+                GlobalRange::new(
+                    hit.block_index as usize,
+                    start,
+                    hit.block_index as usize,
+                    end,
+                )
+                .to_cfi()
+            })
+            .map(|range| CfiRange {
+                start: range.start.0,
+                end: range.end.0,
+            });
+        self.transient_highlight = transient;
+    }
+
+    /// Run an in-reader search over the current book (SEA-05) and jump to
+    /// the first match.
+    fn reader_search(&mut self, query: &str) -> Vec<Event> {
+        let Some(book_id) = self.current_book_id else {
+            return vec![];
+        };
+        let query = query.trim().to_string();
+        let Some(search) = &mut self.search else {
+            return vec![];
+        };
+        let Ok(res) = search.search_in_book(&query, book_id, 200) else {
+            return vec![];
+        };
+        let hits: Vec<SearchHitView> = res.hits.iter().map(|h| self.hit_to_view(h)).collect();
+        if hits.is_empty() {
+            self.reader_search = None;
+            self.transient_highlight = None;
+            return vec![Event::ReaderSearchState { index: 0, total: 0 }];
+        }
+        self.reader_search = Some(ReaderSearchState {
+            query,
+            index: 0,
+            hits: hits.clone(),
+        });
+        self.set_transient_from_view(&hits[0]);
+        let mut events = self.jump_to(hits[0].cfi.clone());
+        events.push(Event::ReaderSearchState {
+            index: 0,
+            total: hits.len() as u32,
+        });
+        events
+    }
+
+    /// Move to the next/previous in-book match (wraps around).
+    fn reader_search_step(&mut self, delta: isize) -> Vec<Event> {
+        let (hit, total) = {
+            let Some(rs) = &mut self.reader_search else {
+                return vec![];
+            };
+            if rs.hits.is_empty() {
+                return vec![];
+            }
+            let n = rs.hits.len() as isize;
+            rs.index = (((rs.index as isize) + delta).rem_euclid(n)) as usize;
+            (rs.hits[rs.index].clone(), rs.hits.len() as u32)
+        };
+        self.set_transient_from_view(&hit);
+        let mut events = self.jump_to(hit.cfi);
+        events.push(Event::ReaderSearchState {
+            index: self.reader_search.as_ref().unwrap().index as u32,
+            total,
+        });
+        events
     }
 
     pub(crate) fn delete_book(&mut self, book_id: BookId) -> Vec<Event> {

@@ -60,6 +60,14 @@ pub enum Event {
         book_id: BookId,
     },
 
+    /// In-reader search state changed (index/total of current match).
+    ReaderSearchState {
+        /// 0-based index of the currently shown match.
+        index: u32,
+        /// Total matches in the current book.
+        total: u32,
+    },
+
     // ── TTS ──────────────────────────────────────────────────────────
     /// Narration state changed.
     NarrationStateChanged {

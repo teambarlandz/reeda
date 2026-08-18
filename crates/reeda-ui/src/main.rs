@@ -11,6 +11,19 @@ fn main() {
     // ── Create core App ─────────────────────────────────────────────
     let mut core = reeda_core::App::new();
 
+    // Persistent storage + full-text search index (desktop: ./reeda_data).
+    // Books imported this session are searchable immediately; re-indexing
+    // of books loaded from storage is a P2 follow-up (see TODO M4.7).
+    if let Ok(store) = reeda_core::BookStore::new("reeda_data") {
+        if let Ok(db) = reeda_core::Database::open(store.root().join("reeda.sqlite")) {
+            core.set_db(db);
+        }
+        if let Ok(search) = reeda_core::search::SearchService::open(store.root()) {
+            core.set_search(search);
+        }
+        core.set_store(store);
+    }
+
     // If a file path is provided as CLI arg, import it and open.
     let args: Vec<String> = std::env::args().collect();
     if let Some(path) = args.get(1) {
@@ -490,6 +503,89 @@ fn main() {
         }
     });
 
+    // ── In-reader search ──────────────────────────────────────────────
+    let reader_pending_query: std::rc::Rc<std::cell::RefCell<Option<String>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+
+    app.on_reader_search_toggled({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let app = weak.unwrap();
+            app.set_reader_search_query(slint::SharedString::from(""));
+            app.set_reader_search_count(slint::SharedString::from(""));
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_reader_search_query_changed({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        let pending = reader_pending_query.clone();
+        move |query: slint::SharedString| {
+            let query = query.to_string();
+            *pending.borrow_mut() = Some(query.clone());
+            let weak = weak.clone();
+            let core_cell = core_cell.clone();
+            let pending = pending.clone();
+            slint::Timer::single_shot(std::time::Duration::from_millis(300), move || {
+                if pending.borrow().as_deref() != Some(query.as_str()) {
+                    return;
+                }
+                {
+                    let mut core = core_cell.borrow_mut();
+                    core.dispatch(reeda_core::Command::ReaderSearch { query });
+                }
+                let app = weak.unwrap();
+                let snap = core_cell.borrow().snapshot();
+                update_ui(&app, &snap);
+            });
+        }
+    });
+
+    app.on_reader_search_next({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::ReaderSearchNext);
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_reader_search_prev({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::ReaderSearchPrev);
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_reader_search_close({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::ReaderSearchClose);
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -579,6 +675,20 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
     app.set_search_hits(slint::ModelRc::from(search_model.as_slice()));
     if snap.last_search.is_none() {
         app.set_search_has_query(false);
+    }
+
+    // In-reader search overlay state.
+    if let Some(rs) = snap.reader_search.as_ref() {
+        app.set_reader_search_count(slint::SharedString::from(format!(
+            "{} / {}",
+            rs.index + 1,
+            rs.total
+        )));
+        if rs.total == 0 {
+            app.set_reader_search_count(slint::SharedString::from("0 / 0"));
+        }
+    } else {
+        app.set_reader_search_count(slint::SharedString::from(""));
     }
 
     // Notes list state.

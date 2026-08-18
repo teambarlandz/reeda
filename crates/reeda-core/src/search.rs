@@ -79,6 +79,16 @@ impl SearchService {
     pub fn search(&mut self, query: &str, limit: Option<usize>) -> SearchResultT<SearchResult> {
         Ok(self.mgr.search(query, None, limit.unwrap_or(200))?)
     }
+
+    /// Search within a single book (in-reader search, SEA-05).
+    pub fn search_in_book(
+        &mut self,
+        query: &str,
+        book_id: BookId,
+        limit: usize,
+    ) -> SearchResultT<SearchResult> {
+        Ok(self.mgr.search(query, Some(&book_id.to_string()), limit)?)
+    }
 }
 
 #[cfg(test)]
@@ -274,6 +284,78 @@ mod tests {
         assert!(events
             .iter()
             .any(|e| matches!(e, crate::Event::Error { .. })));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reader_search_steps_through_matches() {
+        use crate::{App, Command};
+        let dir = temp_dir();
+        let mut app = App::new();
+        app.set_search(SearchService::open(&dir).unwrap());
+        app.import_from_bytes(test_epub(), "test.epub".into());
+        let book_id = app.snapshot().library[0].id;
+        app.dispatch(Command::OpenBook { book_id });
+
+        // "chapter" matches headings plus chapter-title fields of every block.
+        let events = app.dispatch(Command::ReaderSearch {
+            query: "chapter".into(),
+        });
+        let total = match events.iter().find_map(|e| match e {
+            crate::Event::ReaderSearchState { total, .. } => Some(*total),
+            _ => None,
+        }) {
+            Some(t) => t,
+            None => panic!("no ReaderSearchState event: {events:?}"),
+        };
+        assert!(total >= 2);
+        let snap = app.snapshot();
+        let rs = snap.reader_search.as_ref().unwrap();
+        assert_eq!((rs.index, rs.total), (0, total));
+        assert!(snap.transient_highlight.is_some());
+
+        // Next wraps to index 1.
+        let events = app.dispatch(Command::ReaderSearchNext);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            crate::Event::ReaderSearchState { index: 1, total: t } if *t == total
+        )));
+        // Prev wraps back to 0.
+        let events = app.dispatch(Command::ReaderSearchPrev);
+        assert!(events.iter().any(|e| matches!(
+            e,
+            crate::Event::ReaderSearchState { index: 0, total: t } if *t == total
+        )));
+
+        // Close clears state + transient highlight.
+        app.dispatch(Command::ReaderSearchClose);
+        let snap = app.snapshot();
+        assert!(snap.reader_search.is_none());
+        assert!(snap.transient_highlight.is_none());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn reader_search_no_matches() {
+        use crate::{App, Command};
+        let dir = temp_dir();
+        let mut app = App::new();
+        app.set_search(SearchService::open(&dir).unwrap());
+        app.import_from_bytes(test_epub(), "test.epub".into());
+        let book_id = app.snapshot().library[0].id;
+        app.dispatch(Command::OpenBook { book_id });
+
+        let events = app.dispatch(Command::ReaderSearch {
+            query: "zzzzyyyx".into(),
+        });
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, crate::Event::ReaderSearchState { total: 0, .. })));
+        let snap = app.snapshot();
+        assert!(snap.reader_search.is_none());
+        assert!(snap.transient_highlight.is_none());
 
         std::fs::remove_dir_all(&dir).ok();
     }
