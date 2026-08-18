@@ -103,6 +103,8 @@ pub struct App {
     store: Option<BookStore>,
     /// SQLite database for persistence.
     db: Option<Database>,
+    /// Full-text search index.
+    search: Option<crate::search::SearchService>,
 }
 
 impl Default for App {
@@ -127,6 +129,7 @@ impl App {
             reader_state: None,
             store: None,
             db: None,
+            search: None,
         }
     }
 
@@ -152,6 +155,11 @@ impl App {
     /// Set the SQLite database handle.
     pub fn set_db(&mut self, db: Database) {
         self.db = Some(db);
+    }
+
+    /// Set the full-text search index service.
+    pub fn set_search(&mut self, search: crate::search::SearchService) {
+        self.search = Some(search);
     }
 
     /// Load books from the database into memory (call once at startup).
@@ -752,7 +760,7 @@ impl App {
         }
     }
 
-    fn delete_book(&mut self, book_id: BookId) -> Vec<Event> {
+    pub(crate) fn delete_book(&mut self, book_id: BookId) -> Vec<Event> {
         if let Some(book) = self.library.get_mut(&book_id) {
             book.deleted_at = Some(chrono::Utc::now());
             book.updated_at = chrono::Utc::now();
@@ -767,6 +775,12 @@ impl App {
             // Soft-delete in SQLite.
             if let Some(db) = &self.db {
                 let _ = db.delete_book(book_id);
+            }
+            // Remove from the full-text search index.
+            if let Some(search) = &mut self.search {
+                if let Err(e) = search.delete_book(book_id) {
+                    eprintln!("Warning: failed to remove book from index: {e}");
+                }
             }
             vec![Event::LibraryChanged]
         } else {
@@ -898,8 +912,13 @@ impl App {
         let core_chapters = reader::toc_to_chapters(&epub_book.toc, book_id);
         self.chapters.insert(book_id, core_chapters);
 
-        // 6. Store the parsed document.
+        // 6. Store the parsed document + index it for full-text search.
         let parsed = reader::epub_book_to_parsed_doc(&epub_book, book_id);
+        if let Some(search) = &mut self.search {
+            if let Err(e) = search.index_book(book_id, &parsed) {
+                eprintln!("Warning: failed to index book: {e}");
+            }
+        }
         self.parsed_docs.insert(book_id, parsed);
 
         // 7. Persist book + chapters to SQLite (if configured).
@@ -946,6 +965,25 @@ impl App {
     pub fn load_settings(&mut self, settings: AppSettings) {
         self.settings = settings;
     }
+
+    /// Full-text search across the library.
+    ///
+    /// Returns `None` when no search index is configured. Results are ranked
+    /// by relevance; each hit carries a snippet plus a CFI locator.
+    pub fn search_books(
+        &mut self,
+        query: &str,
+        limit: Option<usize>,
+    ) -> Option<reeda_search::index::SearchResult> {
+        let search = self.search.as_mut()?;
+        match search.search(query, limit) {
+            Ok(res) => Some(res),
+            Err(e) => {
+                eprintln!("Warning: search failed: {e}");
+                None
+            }
+        }
+    }
 }
 
 // Workaround: `AppSettings` doesn't have an updated_at field, but we need
@@ -962,7 +1000,8 @@ impl SettingsExt for AppSettings {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
+
     use super::*;
     use crate::models::{
         AnnotationId, AnnotationKind, BookFormat, CfiRange, HighlightColor, Theme,
@@ -1235,7 +1274,7 @@ mod tests {
     }
 
     /// Build a minimal test EPUB in memory (same as reeda-epub tests).
-    fn make_test_epub_bytes() -> Vec<u8> {
+    pub(crate) fn make_test_epub_bytes() -> Vec<u8> {
         use std::io::Write;
         let mut buf = Vec::new();
         {

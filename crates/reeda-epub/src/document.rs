@@ -125,24 +125,55 @@ impl DocumentModel {
         }
         None
     }
+
+    /// Plain text of the block at the global index (used for search indexing).
+    pub fn block_text(&self, index: usize) -> Option<String> {
+        self.block_at(index)
+            .map(|(_chapter, block, _local)| block_text(block))
+    }
+}
+
+/// Extract plain text from a block (headings, paragraphs, alt text, code).
+pub fn block_text(block: &Block) -> String {
+    match block {
+        Block::Heading(_, inlines)
+        | Block::Paragraph(inlines)
+        | Block::Blockquote(inlines)
+        | Block::ListItem(inlines) => inline_to_text(inlines),
+        Block::CodeBlock(s) => s.clone(),
+        Block::Image(img) => img.alt.clone(),
+        Block::HorizontalRule => String::new(),
+    }
 }
 
 /// Extract plain text from a sequence of inline elements.
+///
+/// Adjacent word-like runs (e.g. `More <em>content</em> here.`) get a
+/// separating space; punctuation boundaries stay tight.
 pub fn inline_to_text(inline: &[Inline]) -> String {
     let mut result = String::new();
     for item in inline {
-        match item {
-            Inline::Text(t) => result.push_str(t),
+        let piece = match item {
+            Inline::Text(t) => t.clone(),
             Inline::Strong(children)
             | Inline::Emphasis(children)
             | Inline::Underline(children)
             | Inline::Strikethrough(children)
             | Inline::Sub(children)
-            | Inline::Sup(children) => result.push_str(&inline_to_text(children)),
-            Inline::Link { children, .. } => result.push_str(&inline_to_text(children)),
-            Inline::Code(s) => result.push_str(s),
-            Inline::Break => result.push('\n'),
+            | Inline::Sup(children) => inline_to_text(children),
+            Inline::Link { children, .. } => inline_to_text(children),
+            Inline::Code(s) => s.clone(),
+            Inline::Break => "\n".into(),
+        };
+        let prev_word = result
+            .chars()
+            .next_back()
+            .is_some_and(char::is_alphanumeric);
+        let next_word = piece.chars().next().is_some_and(char::is_alphanumeric);
+        if prev_word && next_word {
+            result.push(' ');
         }
+        result.push_str(&piece);
     }
     result
 }
