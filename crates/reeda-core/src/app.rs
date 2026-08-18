@@ -1,10 +1,13 @@
 use std::collections::HashMap;
 
+use reeda_epub::cfi::{Cfi, CfiRange as EpubCfiRange};
+use reeda_epub::selection::GlobalRange;
+
 use crate::commands::Command;
 use crate::events::{Event, NarrationState};
 use crate::models::{
-    Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookId, Chapter, LineRun,
-    NotesEntry,
+    Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookId, CfiRange, Chapter,
+    LineRun, NotesEntry, SearchHitView, SearchResultsView,
 };
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
 use crate::storage::{Database, StorageResult};
@@ -46,6 +49,10 @@ pub struct StateSnapshot {
     pub page_start_cfi: String,
     /// Table of contents labels for the current book.
     pub toc_labels: Vec<String>,
+    /// Most recent search results (empty when no search has run).
+    pub last_search: Option<SearchResultsView>,
+    /// Transient highlight range (current search match), None when inactive.
+    pub transient_highlight: Option<CfiRange>,
 }
 
 impl Default for StateSnapshot {
@@ -67,6 +74,8 @@ impl Default for StateSnapshot {
             bookmarks_entries: Vec::new(),
             page_start_cfi: String::new(),
             toc_labels: Vec::new(),
+            last_search: None,
+            transient_highlight: None,
         }
     }
 }
@@ -105,6 +114,10 @@ pub struct App {
     db: Option<Database>,
     /// Full-text search index.
     search: Option<crate::search::SearchService>,
+    /// Most recent search results (for the search screen).
+    last_search: Option<SearchResultsView>,
+    /// Transient highlight range (current search match), cleared on navigation.
+    transient_highlight: Option<CfiRange>,
 }
 
 impl Default for App {
@@ -130,6 +143,8 @@ impl App {
             store: None,
             db: None,
             search: None,
+            last_search: None,
+            transient_highlight: None,
         }
     }
 
@@ -404,10 +419,15 @@ impl App {
             }
 
             // ── Search ───────────────────────────────────────────────
-            Command::Search { .. } => {
-                // TODO: Tantivy search (M4)
-                vec![Event::SearchNoResults]
-            }
+            Command::Search { query } => self.search_library(&query),
+
+            Command::OpenSearchHit {
+                book_id,
+                cfi,
+                block_index,
+                char_offset,
+                term_len,
+            } => self.open_search_hit(book_id, cfi, block_index, char_offset, term_len),
 
             // ── TTS ──────────────────────────────────────────────────
             Command::StartNarration { .. } => {
@@ -509,12 +529,17 @@ impl App {
                     let layout = typography_to_layout(&self.settings.typography, 400.0, 700.0);
                     let annotations: Vec<Annotation> =
                         self.annotations.get(&book_id).cloned().unwrap_or_default();
-                    let lines = reader::build_page_lines(
+                    let transient = self.transient_highlight.as_ref().map(|r| EpubCfiRange {
+                        start: Cfi(r.start.clone()),
+                        end: Cfi(r.end.clone()),
+                    });
+                    let lines = reader::build_page_lines_with_transient(
                         &parsed.document,
                         &rs.pages,
                         self.current_page as usize,
                         layout.chars_per_line(),
                         &annotations,
+                        transient.as_ref(),
                     );
                     (
                         content.text,
@@ -583,6 +608,8 @@ impl App {
             bookmarks_entries,
             page_start_cfi,
             toc_labels,
+            last_search: self.last_search.clone(),
+            transient_highlight: self.transient_highlight.clone(),
         }
     }
 
@@ -653,6 +680,7 @@ impl App {
         self.current_page = 0;
         self.total_pages = 0;
         self.reader_state = None;
+        self.transient_highlight = None;
         vec![]
     }
 
@@ -667,6 +695,8 @@ impl App {
         } else if self.current_page > 0 {
             self.current_page -= 1;
         }
+        // Navigating turns off the transient search highlight.
+        self.transient_highlight = None;
         // Sync reader state.
         if let Some(ref mut rs) = self.reader_state {
             rs.current_page = self.current_page;
@@ -757,6 +787,98 @@ impl App {
             None => vec![Event::Error {
                 message: "Annotation not found".into(),
             }],
+        }
+    }
+
+    /// Run a library search, storing results for the search screen.
+    fn search_library(&mut self, query: &str) -> Vec<Event> {
+        // Navigating away from a match clears the transient highlight.
+        self.transient_highlight = None;
+        let query = query.trim().to_string();
+        if query.is_empty() {
+            self.last_search = None;
+            return vec![Event::SearchNoResults];
+        }
+        let Some(res) = self.search_books(&query, Some(200)) else {
+            return vec![Event::Error {
+                message: "Search index unavailable".into(),
+            }];
+        };
+        let view = SearchResultsView {
+            total: res.total,
+            hits: res
+                .hits
+                .iter()
+                .map(|h| SearchHitView {
+                    book_id: h.book_id.parse().unwrap_or_else(|_| BookId::new()),
+                    book_title: self
+                        .library
+                        .get(&h.book_id.parse().unwrap_or_else(|_| BookId::new()))
+                        .map(|b| b.title.clone())
+                        .unwrap_or_else(|| h.title.clone()),
+                    chapter_title: h.chapter_title.clone(),
+                    snippet: h.snippet.clone(),
+                    cfi: h.cfi.start.0.clone(),
+                    block_index: h.block_index,
+                    char_offset: h.char_offset,
+                    term_len: h.term_len,
+                })
+                .collect(),
+        };
+        let ids: Vec<BookId> = {
+            let mut seen = std::collections::HashSet::new();
+            view.hits
+                .iter()
+                .filter(|h| seen.insert(h.book_id))
+                .map(|h| h.book_id)
+                .collect()
+        };
+        self.last_search = Some(view);
+        if ids.is_empty() {
+            vec![Event::SearchNoResults]
+        } else {
+            vec![Event::SearchResults { results: ids }]
+        }
+    }
+
+    /// Open a book at a search hit and set the transient highlight.
+    fn open_search_hit(
+        &mut self,
+        book_id: BookId,
+        cfi: String,
+        block_index: u32,
+        char_offset: u32,
+        term_len: u32,
+    ) -> Vec<Event> {
+        if self.library.contains_key(&book_id) {
+            if self.current_book_id != Some(book_id) {
+                self.open_book(book_id);
+            }
+            // Clamp the transient range to the block's text.
+            let transient = self
+                .current_book_id
+                .and_then(|id| self.parsed_docs.get(&id))
+                .and_then(|pd| pd.document.block_text(block_index as usize))
+                .map(|text| {
+                    let start = (char_offset as usize).min(text.len());
+                    let end = (start + term_len as usize).min(text.len()).max(start);
+                    GlobalRange::new(block_index as usize, start, block_index as usize, end)
+                        .to_cfi()
+                })
+                .map(|range| CfiRange {
+                    start: range.start.0,
+                    end: range.end.0,
+                });
+            if let Some(transient) = transient {
+                self.transient_highlight = Some(transient);
+            }
+            let mut events = self.jump_to(cfi);
+            events.push(Event::SearchResultOpened { book_id });
+            events
+        } else {
+            vec![Event::Error {
+                message: format!("Book {book_id} not found"),
+            }]
         }
     }
 

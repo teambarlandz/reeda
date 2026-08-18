@@ -74,6 +74,20 @@ pub enum Command {
     /// Search the library for text.
     Search { query: String },
 
+    /// Open a book at a search hit (open-at-match, SEA-03).
+    OpenSearchHit {
+        /// Book containing the match.
+        book_id: BookId,
+        /// CFI string of the match.
+        cfi: String,
+        /// Global block index of the match.
+        block_index: u32,
+        /// Character offset of the match within the block.
+        char_offset: u32,
+        /// Length in chars of the matching term (transient highlight width).
+        term_len: u32,
+    },
+
     // ── TTS ──────────────────────────────────────────────────────────
     /// Start narration from the current position (or a specific chapter).
     StartNarration {

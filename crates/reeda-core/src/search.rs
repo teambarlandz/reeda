@@ -160,4 +160,121 @@ mod tests {
 
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    #[test]
+    fn dispatch_search_emits_results_and_snapshot() {
+        use crate::{App, Command};
+        let dir = temp_dir();
+        let mut app = App::new();
+        app.set_search(SearchService::open(&dir).unwrap());
+        app.import_from_bytes(test_epub(), "test.epub".into());
+
+        let events = app.dispatch(Command::Search {
+            query: "hello".into(),
+        });
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, crate::Event::SearchResults { .. })),
+            "expected SearchResults event, got {events:?}"
+        );
+
+        let snap = app.snapshot();
+        let search = snap.last_search.expect("search results in snapshot");
+        assert_eq!(search.total, 1);
+        assert_eq!(search.hits.len(), 1);
+        assert!(search.hits[0].snippet.contains("Hello"));
+        assert!(!search.hits[0].cfi.is_empty());
+        assert!(search.hits[0].term_len > 0);
+        assert_eq!(search.hits[0].book_title, "Integration Test Book");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dispatch_search_no_results() {
+        use crate::{App, Command};
+        let dir = temp_dir();
+        let mut app = App::new();
+        app.set_search(SearchService::open(&dir).unwrap());
+        app.import_from_bytes(test_epub(), "test.epub".into());
+
+        let events = app.dispatch(Command::Search {
+            query: "zzzzyyyx".into(),
+        });
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, crate::Event::SearchNoResults)));
+        let snap = app.snapshot();
+        assert_eq!(snap.last_search.as_ref().unwrap().total, 0);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn open_search_hit_jumps_and_sets_transient_highlight() {
+        use crate::{App, Command};
+        let dir = temp_dir();
+        let mut app = App::new();
+        app.set_search(SearchService::open(&dir).unwrap());
+        app.import_from_bytes(test_epub(), "test.epub".into());
+
+        app.dispatch(Command::Search {
+            query: "hello".into(),
+        });
+        let snap = app.snapshot();
+        let hit = snap.last_search.as_ref().unwrap().hits[0].clone();
+
+        let events = app.dispatch(Command::OpenSearchHit {
+            book_id: hit.book_id,
+            cfi: hit.cfi.clone(),
+            block_index: hit.block_index,
+            char_offset: hit.char_offset,
+            term_len: hit.term_len,
+        });
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, crate::Event::SearchResultOpened { .. })),
+            "expected SearchResultOpened, got {events:?}"
+        );
+
+        let snap = app.snapshot();
+        assert_eq!(snap.current_book.as_ref().unwrap().id, hit.book_id);
+        assert!(
+            snap.transient_highlight.is_some(),
+            "transient highlight set"
+        );
+        assert!(
+            snap.page_lines.iter().flatten().any(|run| run.highlighted),
+            "page lines contain the transient highlight"
+        );
+
+        // Page turn clears the transient highlight.
+        app.dispatch(Command::TurnPage { forward: true });
+        assert!(app.snapshot().transient_highlight.is_none());
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn open_search_hit_unknown_book_errors() {
+        use crate::{App, Command};
+        let dir = temp_dir();
+        let mut app = App::new();
+        app.set_search(SearchService::open(&dir).unwrap());
+
+        let events = app.dispatch(Command::OpenSearchHit {
+            book_id: BookId::new(),
+            cfi: "epubcfi(/6/4!/4/2/2/1:0)".into(),
+            block_index: 0,
+            char_offset: 0,
+            term_len: 1,
+        });
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, crate::Event::Error { .. })));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

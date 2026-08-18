@@ -54,6 +54,12 @@ pub enum Event {
     /// Search had no results.
     SearchNoResults,
 
+    /// A search result was opened in the reader (open-at-match, SEA-03).
+    SearchResultOpened {
+        /// The book that was opened.
+        book_id: BookId,
+    },
+
     // ── TTS ──────────────────────────────────────────────────────────
     /// Narration state changed.
     NarrationStateChanged {

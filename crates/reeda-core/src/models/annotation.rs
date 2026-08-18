@@ -27,6 +27,8 @@ pub enum HighlightColor {
     Blue,
     /// Pink highlight.
     Pink,
+    /// Cyan highlight (transient search match).
+    Cyan,
 }
 
 impl HighlightColor {
@@ -37,6 +39,7 @@ impl HighlightColor {
             HighlightColor::Green => "#9FE8B0",
             HighlightColor::Blue => "#A8D8F0",
             HighlightColor::Pink => "#F7B7D6",
+            HighlightColor::Cyan => "#7FE3F0",
         }
     }
 }

@@ -213,6 +213,19 @@ pub fn build_page_lines(
     chars_per_line: usize,
     annotations: &[Annotation],
 ) -> Vec<Vec<LineRun>> {
+    build_page_lines_with_transient(doc, pages, page_idx, chars_per_line, annotations, None)
+}
+
+/// Like [`build_page_lines`], but also renders a transient highlight
+/// (e.g. the current search match) that is not part of the annotation store.
+pub fn build_page_lines_with_transient(
+    doc: &DocumentModel,
+    pages: &Pages,
+    page_idx: usize,
+    chars_per_line: usize,
+    annotations: &[Annotation],
+    transient: Option<&EpubCfiRange>,
+) -> Vec<Vec<LineRun>> {
     if page_idx >= pages.pages.len() {
         return Vec::new();
     }
@@ -249,6 +262,24 @@ pub fn build_page_lines(
                 has_note,
                 annotation_id: annotation_id.clone(),
             });
+        }
+    }
+
+    // Transient highlight (search match) rendered in cyan, no annotation id.
+    if let Some(range) = transient {
+        if let Some(gr) = GlobalRange::from_cfi(range, spine_length) {
+            if let Some(segs) = intersect_range_with_page(&gr, page) {
+                for seg in segs {
+                    segments.push(PageHighlightSegment {
+                        block_index: seg.block_index,
+                        char_start: seg.char_start,
+                        char_end: seg.char_end,
+                        color: HighlightColor::Cyan,
+                        has_note: false,
+                        annotation_id: String::new(),
+                    });
+                }
+            }
         }
     }
 
@@ -364,6 +395,7 @@ fn entries_for(
             Some(HighlightColor::Green) => 1,
             Some(HighlightColor::Blue) => 2,
             Some(HighlightColor::Pink) => 3,
+            Some(HighlightColor::Cyan) => 4,
             None => 0,
         };
 

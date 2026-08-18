@@ -84,6 +84,8 @@ pub struct SearchHit {
     pub snippet: String,
     /// CFI range of the first match (open-at-match, SEA-03).
     pub cfi: EpubCfiRange,
+    /// Length in chars of the first matching query term (for transient highlight).
+    pub term_len: u32,
 }
 
 /// Result of a search query: hits + total count (before the cap).
@@ -373,6 +375,7 @@ impl IndexManager {
             chapter_title: s(self.fields.chapter_title),
             snippet,
             cfi,
+            term_len: term_chars as u32,
         })
     }
 }
