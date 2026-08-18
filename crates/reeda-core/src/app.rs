@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::commands::Command;
 use crate::events::{Event, NarrationState};
 use crate::models::{Annotation, AnnotationKind, AppSettings, Book, BookId, Chapter};
+use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
 
 /// A snapshot of the complete application state, serializable and sent to
 /// the UI after each command dispatch. The UI renders purely from this.
@@ -24,6 +25,14 @@ pub struct StateSnapshot {
     pub settings: AppSettings,
     /// Current narration state.
     pub narration_state: NarrationState,
+    /// Text content of the current page (for Slint rendering).
+    pub page_text: String,
+    /// Chapter title of the current page.
+    pub page_chapter_title: String,
+    /// Block-level content of the current page (for rich rendering).
+    pub page_blocks: Vec<PageBlock>,
+    /// Table of contents labels for the current book.
+    pub toc_labels: Vec<String>,
 }
 
 impl Default for StateSnapshot {
@@ -37,6 +46,10 @@ impl Default for StateSnapshot {
             annotations: Vec::new(),
             settings: AppSettings::default(),
             narration_state: NarrationState::Idle,
+            page_text: String::new(),
+            page_chapter_title: String::new(),
+            page_blocks: Vec::new(),
+            toc_labels: Vec::new(),
         }
     }
 }
@@ -65,6 +78,10 @@ pub struct App {
     settings: AppSettings,
     /// Narration state.
     narration_state: NarrationState,
+    /// Parsed documents registry (EPUB content).
+    parsed_docs: ParsedDocRegistry,
+    /// Reader state for the currently open book (pagination + current page).
+    reader_state: Option<ReaderState>,
 }
 
 impl Default for App {
@@ -85,6 +102,8 @@ impl App {
             total_pages: 0,
             settings: AppSettings::default(),
             narration_state: NarrationState::Idle,
+            parsed_docs: ParsedDocRegistry::new(),
+            reader_state: None,
         }
     }
 
@@ -93,12 +112,7 @@ impl App {
     pub fn dispatch(&mut self, command: Command) -> Vec<Event> {
         match command {
             // ── Library ──────────────────────────────────────────────
-            Command::Import { .. } => {
-                // TODO: import pipeline in M0.3+ (hash, copy, parse, index)
-                vec![Event::Error {
-                    message: "Import not yet implemented".into(),
-                }]
-            }
+            Command::Import { uri } => self.import_book(uri),
 
             Command::DeleteBook { book_id } => self.delete_book(book_id),
 
@@ -115,8 +129,7 @@ impl App {
             Command::SetTypography(ty) => {
                 self.settings.typography = ty;
                 self.settings.updated_at_v2();
-                // TODO: trigger re-pagination (M1)
-                vec![]
+                self.repaginate()
             }
 
             Command::SetTheme(theme) => {
@@ -338,12 +351,26 @@ impl App {
             .filter(|b| b.deleted_at.is_none())
             .cloned()
             .collect();
-        // Sort by last_opened_at descending (most recent first).
         library.sort_by(|a, b| {
             b.last_opened_at
                 .partial_cmp(&a.last_opened_at)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
+
+        // Page content from reader state.
+        let (page_text, page_chapter_title, page_blocks, toc_labels) =
+            if let (Some(book_id), Some(ref rs)) = (self.current_book_id, &self.reader_state) {
+                if let Some(parsed) = self.parsed_docs.get(&book_id) {
+                    let content = rs.current_page_content(&parsed.document);
+                    let toc: Vec<String> =
+                        parsed.toc.items.iter().map(|i| i.label.clone()).collect();
+                    (content.text, content.chapter_title, content.blocks, toc)
+                } else {
+                    (String::new(), String::new(), Vec::new(), Vec::new())
+                }
+            } else {
+                (String::new(), String::new(), Vec::new(), Vec::new())
+            };
 
         StateSnapshot {
             library,
@@ -354,6 +381,10 @@ impl App {
             annotations,
             settings: self.settings.clone(),
             narration_state: self.narration_state,
+            page_text,
+            page_chapter_title,
+            page_blocks,
+            toc_labels,
         }
     }
 
@@ -364,7 +395,18 @@ impl App {
             book.last_opened_at = Some(chrono::Utc::now());
             self.current_book_id = Some(book_id);
             self.current_page = 0;
-            // TODO: trigger pagination (M1)
+
+            // Paginate if we have the parsed document.
+            if let Some(parsed) = self.parsed_docs.get(&book_id) {
+                let layout = typography_to_layout(&self.settings.typography, 400.0, 700.0);
+                let pages = reader::paginate_doc(&parsed.document, &layout);
+                self.total_pages = pages.pages.len() as u32;
+                self.reader_state = Some(ReaderState {
+                    pages,
+                    current_page: 0,
+                });
+            }
+
             vec![]
         } else {
             vec![Event::Error {
@@ -377,6 +419,7 @@ impl App {
         self.current_book_id = None;
         self.current_page = 0;
         self.total_pages = 0;
+        self.reader_state = None;
         vec![]
     }
 
@@ -391,14 +434,37 @@ impl App {
         } else if self.current_page > 0 {
             self.current_page -= 1;
         }
+        // Sync reader state.
+        if let Some(ref mut rs) = self.reader_state {
+            rs.current_page = self.current_page;
+        }
         vec![Event::PageChanged {
             page_index: self.current_page,
             total_pages: self.total_pages,
         }]
     }
 
-    fn jump_to(&mut self, _cfi: String) -> Vec<Event> {
-        // TODO: CFI → page mapping (M1)
+    fn jump_to(&mut self, cfi: String) -> Vec<Event> {
+        if self.current_book_id.is_none() {
+            return vec![];
+        }
+        if let Some(ref rs) = self.reader_state {
+            let spine_len = self
+                .current_book_id
+                .and_then(|id| self.parsed_docs.get(&id))
+                .map(|pd| pd.spine.len() as u32)
+                .unwrap_or(0);
+            if let Some(page_idx) = reader::find_page_for_cfi(&rs.pages, &cfi, spine_len) {
+                self.current_page = page_idx;
+                if let Some(ref mut rs) = self.reader_state {
+                    rs.current_page = page_idx;
+                }
+                return vec![Event::PageChanged {
+                    page_index: self.current_page,
+                    total_pages: self.total_pages,
+                }];
+            }
+        }
         vec![]
     }
 
@@ -423,9 +489,88 @@ impl App {
         self.library.insert(id, book);
     }
 
-    /// Set chapters for a book.
-    pub fn set_chapters(&mut self, book_id: BookId, chapters: Vec<Chapter>) {
-        self.chapters.insert(book_id, chapters);
+    /// Import a book from a file path (desktop) or SAF URI (Android).
+    fn import_book(&mut self, path: String) -> Vec<Event> {
+        // Read file bytes.
+        let data = match std::fs::read(&path) {
+            Ok(d) => d,
+            Err(e) => {
+                return vec![Event::ImportFailed {
+                    error: format!("Failed to read file: {e}"),
+                }];
+            }
+        };
+        self.import_from_bytes(data, path)
+    }
+
+    /// Import a book from raw EPUB bytes.
+    ///
+    /// Parses the EPUB, creates a `Book`, adds it to the library,
+    /// and stores the parsed document for later pagination.
+    pub fn import_from_bytes(&mut self, data: Vec<u8>, path: String) -> Vec<Event> {
+        let epub_book = match reeda_epub::open_epub(&data) {
+            Ok(b) => b,
+            Err(e) => {
+                return vec![Event::ImportFailed {
+                    error: format!("EPUB parse error: {e}"),
+                }];
+            }
+        };
+
+        use crate::models::BookFormat;
+        let sha256 = {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            data.hash(&mut hasher);
+            format!("{:016x}", hasher.finish())
+        };
+
+        let mut book = Book::new(
+            epub_book
+                .opf
+                .metadata
+                .title
+                .clone()
+                .unwrap_or_else(|| "Untitled".into()),
+            BookFormat::Epub,
+            path,
+            sha256,
+        );
+        book.author = epub_book.opf.metadata.creators.first().cloned();
+
+        let book_id = book.id;
+
+        // Build chapters from TOC.
+        let core_chapters = reader::toc_to_chapters(&epub_book.toc, book_id);
+        self.chapters.insert(book_id, core_chapters);
+
+        // Store the parsed document.
+        let parsed = reader::epub_book_to_parsed_doc(&epub_book, book_id);
+        self.parsed_docs.insert(book_id, parsed);
+
+        self.library.insert(book_id, book);
+
+        vec![Event::ImportFinished { book_id }]
+    }
+
+    /// Re-paginate the current book with updated settings.
+    fn repaginate(&mut self) -> Vec<Event> {
+        if let Some(book_id) = self.current_book_id {
+            if let Some(parsed) = self.parsed_docs.get(&book_id) {
+                let layout = typography_to_layout(&self.settings.typography, 400.0, 700.0);
+                let pages = reader::paginate_doc(&parsed.document, &layout);
+                self.total_pages = pages.pages.len() as u32;
+                // Clamp current page.
+                if self.current_page >= self.total_pages && self.total_pages > 0 {
+                    self.current_page = self.total_pages - 1;
+                }
+                self.reader_state = Some(ReaderState {
+                    pages,
+                    current_page: self.current_page,
+                });
+            }
+        }
+        vec![]
     }
 
     /// Load settings (used by storage layer after DB read).
@@ -643,5 +788,139 @@ mod tests {
         assert_eq!(snap.library.len(), 2);
         assert_eq!(snap.library[0].id, id2);
         assert_eq!(snap.library[1].id, id1);
+    }
+
+    /// Build a minimal test EPUB in memory (same as reeda-epub tests).
+    fn make_test_epub_bytes() -> Vec<u8> {
+        use std::io::Write;
+        let mut buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let stored = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            let deflated = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+
+            zip.start_file("mimetype", stored).unwrap();
+            zip.write_all(b"application/epub+zip").unwrap();
+
+            zip.start_file("META-INF/container.xml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#).unwrap();
+
+            zip.start_file("OEBPS/content.opf", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Integration Test Book</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language><dc:identifier id="BookId">urn:uuid:test-001</dc:identifier></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="ch1" href="chapter1.xhtml" media-type="application/xhtml+xml"/><item id="ch2" href="chapter2.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="ch1"/><itemref idref="ch2"/></spine></package>"#).unwrap();
+
+            zip.start_file("OEBPS/nav.xhtml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Navigation</title></head><body><nav epub:type="toc"><ol><li><a href="chapter1.xhtml">Chapter 1</a></li><li><a href="chapter2.xhtml">Chapter 2</a></li></ol></nav></body></html>"#).unwrap();
+
+            zip.start_file("OEBPS/chapter1.xhtml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Ch1</title></head><body><h1>Chapter 1</h1><p>Hello <strong>world</strong>.</p><p>Second paragraph.</p></body></html>"#).unwrap();
+
+            zip.start_file("OEBPS/chapter2.xhtml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Ch2</title></head><body><h1>Chapter 2</h1><p>More <em>content</em> here.</p></body></html>"#).unwrap();
+
+            zip.finish().unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn import_epub_adds_to_library() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+
+        assert_eq!(events.len(), 1);
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        let snap = app.snapshot();
+        assert_eq!(snap.library.len(), 1);
+        assert_eq!(snap.library[0].id, book_id);
+        assert_eq!(snap.library[0].title, "Integration Test Book");
+    }
+
+    #[test]
+    fn import_then_open_paginates() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        let events = app.dispatch(Command::OpenBook { book_id });
+        assert!(events.is_empty());
+
+        let snap = app.snapshot();
+        assert!(snap.total_pages > 0);
+        assert!(!snap.page_text.is_empty());
+        assert_eq!(snap.current_page, 0);
+    }
+
+    #[test]
+    fn open_then_turn_page_updates_content() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        app.dispatch(Command::OpenBook { book_id });
+        let snap1 = app.snapshot();
+        let text1 = snap1.page_text.clone();
+
+        // Try turning forward — if only one page, content stays the same.
+        app.dispatch(Command::TurnPage { forward: true });
+        let snap2 = app.snapshot();
+        if snap2.total_pages > 1 {
+            assert_ne!(text1, snap2.page_text);
+        } else {
+            assert_eq!(text1, snap2.page_text);
+        }
+    }
+
+    #[test]
+    fn set_typography_triggers_repagination() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+        let pages_before = app.snapshot().total_pages;
+
+        // Change to smaller font → more pages.
+        app.dispatch(Command::SetTypography(crate::models::Typography {
+            font_size_pt: 8.0,
+            ..Default::default()
+        }));
+        let pages_after = app.snapshot().total_pages;
+        assert!(pages_after >= pages_before);
+    }
+
+    #[test]
+    fn close_book_clears_reader_state() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+        assert!(app.snapshot().total_pages > 0);
+
+        app.dispatch(Command::CloseBook);
+        let snap = app.snapshot();
+        assert_eq!(snap.total_pages, 0);
+        assert!(snap.page_text.is_empty());
     }
 }

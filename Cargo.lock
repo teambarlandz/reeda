@@ -4296,12 +4296,14 @@ name = "reeda-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "reeda-epub",
  "rusqlite",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",
  "uuid",
+ "zip",
 ]
 
 [[package]]

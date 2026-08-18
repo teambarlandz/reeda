@@ -3,6 +3,7 @@ pub mod commands;
 pub mod events;
 pub mod models;
 pub mod platform;
+pub mod reader;
 pub mod storage;
 
 pub use app::{App, StateSnapshot};
@@ -12,6 +13,7 @@ pub use models::{
     Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookFormat, BookId, CfiRange,
     Chapter, ChapterId, HighlightColor, ShelfId, TapZonesLayout, Theme, Typography,
 };
+pub use reader::{PageBlock, PageContent};
 
 /// Returns the current reeda-core crate version.
 pub fn crate_version() -> &'static str {
