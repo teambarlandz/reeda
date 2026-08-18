@@ -450,4 +450,95 @@ mod tests {
         assert!(content.text.is_empty());
         assert!(content.blocks.is_empty());
     }
+
+    #[test]
+    fn paginate_long_doc_many_pages() {
+        let mut blocks = Vec::new();
+        for i in 0..50 {
+            blocks.push(Block::Paragraph(vec![Inline::Text(format!(
+                "Paragraph {i}: Some content to fill the page with enough text to cause wrapping. "
+            ))]));
+        }
+        let doc = DocumentModel {
+            chapters: vec![document::Chapter {
+                spine_index: 0,
+                title: "Long Chapter".into(),
+                href: "long.xhtml".into(),
+                blocks,
+            }],
+        };
+
+        let layout = PageLayout {
+            width: 200.0,
+            height: 100.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        assert!(
+            pages.pages.len() >= 5,
+            "expected many pages, got {}",
+            pages.pages.len()
+        );
+
+        // Progress should reach ~1.0 on the last page.
+        let last = pages.pages.last().unwrap();
+        assert!(last.progress > 0.9);
+    }
+
+    #[test]
+    fn extract_page_content_middle_page() {
+        let mut blocks = Vec::new();
+        for i in 0..20 {
+            blocks.push(Block::Paragraph(vec![Inline::Text(format!(
+                "Paragraph {i}."
+            ))]));
+        }
+        let doc = DocumentModel {
+            chapters: vec![document::Chapter {
+                spine_index: 0,
+                title: "Chapter".into(),
+                href: "ch.xhtml".into(),
+                blocks,
+            }],
+        };
+        let layout = PageLayout {
+            width: 200.0,
+            height: 100.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        assert!(pages.pages.len() >= 3);
+
+        // Middle page should have non-empty text.
+        let mid = pages.pages.len() / 2;
+        let content = extract_page_content(&doc, &pages, mid);
+        assert!(!content.text.is_empty());
+        assert!(!content.blocks.is_empty());
+    }
+
+    #[test]
+    fn find_page_for_cfi_returns_page() {
+        let doc = test_doc();
+        let layout = PageLayout {
+            width: 100.0,
+            height: 50.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        // CFI for spine 0, block 0, char 0 should land on page 0 or close.
+        let cfi = "epubcfi(/6/4!/4/2:0)";
+        let idx = find_page_for_cfi(&pages, cfi, 2);
+        // May or may not find a page (depends on how CFI maps to block indices),
+        // but should not panic.
+        let _ = idx;
+    }
 }

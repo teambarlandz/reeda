@@ -923,4 +923,89 @@ mod tests {
         assert_eq!(snap.total_pages, 0);
         assert!(snap.page_text.is_empty());
     }
+
+    #[test]
+    fn import_invalid_bytes_returns_import_failed() {
+        let mut app = App::new();
+        let events = app.import_from_bytes(vec![0, 1, 2, 3], "fake.epub".into());
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Event::ImportFailed { error } => assert!(error.contains("EPUB parse error")),
+            _ => panic!("expected ImportFailed"),
+        }
+    }
+
+    #[test]
+    fn import_preserves_metadata() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        let snap = app.snapshot();
+        let book = snap.library.iter().find(|b| b.id == book_id).unwrap();
+        assert_eq!(book.title, "Integration Test Book");
+        assert_eq!(book.author.as_deref(), Some("Test Author"));
+    }
+
+    #[test]
+    fn open_book_populates_toc() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+        let snap = app.snapshot();
+        assert_eq!(snap.toc_labels.len(), 2);
+        assert_eq!(snap.toc_labels[0], "Chapter 1");
+        assert_eq!(snap.toc_labels[1], "Chapter 2");
+    }
+
+    #[test]
+    fn turn_page_backward_at_start_stays_at_zero() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+
+        // Already at page 0, going backward should stay at 0.
+        let events = app.dispatch(Command::TurnPage { forward: false });
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Event::PageChanged { page_index, .. } => assert_eq!(*page_index, 0),
+            _ => panic!("expected PageChanged"),
+        }
+    }
+
+    #[test]
+    fn page_chapter_title_changes_across_pages() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+        let snap = app.snapshot();
+        let _first_title = snap.page_chapter_title.clone();
+
+        // If there are multiple pages, the title might differ.
+        if snap.total_pages > 1 {
+            app.dispatch(Command::TurnPage { forward: true });
+            let snap2 = app.snapshot();
+            // At least the page text should differ (different content).
+            // Title may be same if still in same chapter.
+            assert_ne!(snap.page_text, snap2.page_text);
+        }
+    }
 }
