@@ -4,6 +4,7 @@ use crate::commands::Command;
 use crate::events::{Event, NarrationState};
 use crate::models::{Annotation, AnnotationKind, AppSettings, Book, BookId, Chapter};
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
+use crate::store::BookStore;
 
 /// A snapshot of the complete application state, serializable and sent to
 /// the UI after each command dispatch. The UI renders purely from this.
@@ -82,6 +83,8 @@ pub struct App {
     parsed_docs: ParsedDocRegistry,
     /// Reader state for the currently open book (pagination + current page).
     reader_state: Option<ReaderState>,
+    /// On-disk file storage for books and covers.
+    store: Option<BookStore>,
 }
 
 impl Default for App {
@@ -104,7 +107,20 @@ impl App {
             narration_state: NarrationState::Idle,
             parsed_docs: ParsedDocRegistry::new(),
             reader_state: None,
+            store: None,
         }
+    }
+
+    /// Create an `App` with a persistent file store.
+    pub fn with_store(store: BookStore) -> Self {
+        let mut app = Self::new();
+        app.store = Some(store);
+        app
+    }
+
+    /// Set the file store (e.g., after initialization with a data directory).
+    pub fn set_store(&mut self, store: BookStore) {
+        self.store = Some(store);
     }
 
     /// Dispatch a command, mutating state and returning a list of events
@@ -474,6 +490,11 @@ impl App {
             book.updated_at = chrono::Utc::now();
             if self.current_book_id == Some(book_id) {
                 self.current_book_id = None;
+                self.reader_state = None;
+            }
+            // Clean up files from disk.
+            if let Some(ref store) = self.store {
+                let _ = store.delete_book_files(book_id);
             }
             vec![Event::LibraryChanged]
         } else {
@@ -505,9 +526,10 @@ impl App {
 
     /// Import a book from raw EPUB bytes.
     ///
-    /// Parses the EPUB, creates a `Book`, adds it to the library,
-    /// and stores the parsed document for later pagination.
+    /// If a `BookStore` is configured, copies the file to persistent storage.
+    /// Performs SHA-256 deduplication and stores parsed content for pagination.
     pub fn import_from_bytes(&mut self, data: Vec<u8>, path: String) -> Vec<Event> {
+        // 1. Parse EPUB.
         let epub_book = match reeda_epub::open_epub(&data) {
             Ok(b) => b,
             Err(e) => {
@@ -517,14 +539,18 @@ impl App {
             }
         };
 
-        use crate::models::BookFormat;
-        let sha256 = {
-            use std::hash::{Hash, Hasher};
-            let mut hasher = std::collections::hash_map::DefaultHasher::new();
-            data.hash(&mut hasher);
-            format!("{:016x}", hasher.finish())
-        };
+        // 2. Compute hash.
+        let sha256 = crate::store::sha256_hex(&data);
 
+        // 3. Dedup check.
+        let duplicate = self.library.values().any(|b| b.sha256 == sha256);
+        if duplicate {
+            return vec![Event::ImportFailed {
+                error: "Duplicate book (already in library)".into(),
+            }];
+        }
+
+        use crate::models::BookFormat;
         let mut book = Book::new(
             epub_book
                 .opf
@@ -537,14 +563,28 @@ impl App {
             sha256,
         );
         book.author = epub_book.opf.metadata.creators.first().cloned();
+        book.language = epub_book.opf.metadata.language.clone();
+        book.publisher = epub_book.opf.metadata.publisher.clone();
+        book.description = epub_book.opf.metadata.description.clone();
+        book.published_at = epub_book.opf.metadata.date.clone();
 
         let book_id = book.id;
 
-        // Build chapters from TOC.
+        // 4. Copy file to persistent storage (if store is configured).
+        if let Some(ref store) = self.store {
+            if let Err(e) = store.store_book(book_id, BookFormat::Epub, &data) {
+                return vec![Event::ImportFailed {
+                    error: format!("Failed to store book file: {e}"),
+                }];
+            }
+            book.file_path = store.relative_book_path(book_id, BookFormat::Epub);
+        }
+
+        // 5. Build chapters from TOC.
         let core_chapters = reader::toc_to_chapters(&epub_book.toc, book_id);
         self.chapters.insert(book_id, core_chapters);
 
-        // Store the parsed document.
+        // 6. Store the parsed document.
         let parsed = reader::epub_book_to_parsed_doc(&epub_book, book_id);
         self.parsed_docs.insert(book_id, parsed);
 
@@ -1007,5 +1047,73 @@ mod tests {
             // Title may be same if still in same chapter.
             assert_ne!(snap.page_text, snap2.page_text);
         }
+    }
+
+    #[test]
+    fn import_duplicate_returns_import_failed() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub.clone(), "test.epub".into());
+        assert!(matches!(&events[0], Event::ImportFinished { .. }));
+
+        // Import the same bytes again → should be deduplicated.
+        let events = app.import_from_bytes(epub, "test2.epub".into());
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Event::ImportFailed { error } => assert!(error.contains("Duplicate")),
+            _ => panic!("expected ImportFailed for duplicate"),
+        }
+    }
+
+    #[test]
+    fn import_with_store_copies_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::store::BookStore::new(dir.path()).unwrap();
+        let mut app = App::with_store(store);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        // The book's file_path should be a relative path.
+        let snap = app.snapshot();
+        let book = snap.library.iter().find(|b| b.id == book_id).unwrap();
+        assert!(book.file_path.starts_with("books/"));
+
+        // The file should exist on disk.
+        let store = app.store.as_ref().unwrap();
+        assert!(store
+            .book_path(book_id, crate::models::BookFormat::Epub)
+            .exists());
+    }
+
+    #[test]
+    fn delete_with_store_removes_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = crate::store::BookStore::new(dir.path()).unwrap();
+        let mut app = App::with_store(store);
+
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        // Verify file exists before delete.
+        let book_path = app
+            .store
+            .as_ref()
+            .unwrap()
+            .book_path(book_id, crate::models::BookFormat::Epub);
+        assert!(book_path.exists());
+
+        app.dispatch(Command::DeleteBook { book_id });
+
+        // File should be removed.
+        assert!(!book_path.exists());
     }
 }
