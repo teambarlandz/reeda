@@ -77,6 +77,53 @@ fn main() {
         }
     });
 
+    // ── Metadata edit dialog ────────────────────────────────────────
+    app.on_metadata_requested({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |book_id: slint::SharedString| {
+            let app = weak.unwrap();
+            let core = core_cell.borrow();
+            let id = book_id.to_string();
+            if let Some(book) = core.snapshot().library.iter().find(|b| b.id.to_string() == id) {
+                app.set_metadata_title(slint::SharedString::from(&book.title));
+                app.set_metadata_author(slint::SharedString::from(
+                    book.author.as_deref().unwrap_or(""),
+                ));
+                app.set_metadata_open(true);
+            }
+        }
+    });
+
+    app.on_metadata_saved({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |title: slint::SharedString, author: slint::SharedString| {
+            let app = weak.unwrap();
+            let id = app.get_metadata_book_id().to_string();
+            {
+                let mut core = core_cell.borrow_mut();
+                if let Ok(book_id) = reeda_core::BookId::try_from(id.as_str()) {
+                    core.dispatch(reeda_core::Command::EditMetadata {
+                        book_id,
+                        title: title.to_string(),
+                        author: Some(author.to_string()),
+                    });
+                }
+            }
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_metadata_cancelled({
+        let weak = weak.clone();
+        move || {
+            let app = weak.unwrap();
+            app.set_metadata_open(false);
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(app.window(), reeda_core::Theme::Light);
 

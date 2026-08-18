@@ -4,7 +4,7 @@ import { Theme } from "./Theme.slint";
 import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
 import { ReaderScreen } from "./ReaderScreen.slint";
-import { ErrorDialog } from "./Dialogs.slint";
+import { ErrorDialog, MetadataDialog } from "./Dialogs.slint";
 
 export component AppRoot inherits Window {
     title: "Reeda";
@@ -24,6 +24,12 @@ export component AppRoot inherits Window {
     in-out property < string > library-count-text: "0 books";
     in-out property < [BookInfo] > library-books: [];
 
+    // ── Metadata dialog ─────────────────────────────────────────────
+    in-out property < bool > metadata-open: false;
+    in-out property < string > metadata-title: "";
+    in-out property < string > metadata-author: "";
+    in-out property < string > metadata-book-id: "";
+
     // ── Reader properties (bound from Rust) ─────────────────────────
     in-out property < string > book-title: "";
     in-out property < string > page-text: "";
@@ -37,6 +43,9 @@ export component AppRoot inherits Window {
     callback back-pressed();
     callback toggle-chrome();
     callback import-requested();
+    callback metadata-requested(string);
+    callback metadata-saved(string, string);
+    callback metadata-cancelled();
 
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
@@ -48,6 +57,11 @@ export component AppRoot inherits Window {
         book-opened(id) => {
             root.show-library = false;
             root.show-reader = true;
+        }
+
+        edit-requested(id) => {
+            root.metadata-book-id = id;
+            root.metadata-requested(id);
         }
     }
 
@@ -72,5 +86,21 @@ export component AppRoot inherits Window {
     ErrorDialog {
         message: root.error-message;
         open: root.error-open;
+    }
+
+    MetadataDialog {
+        open: root.metadata-open;
+        book-title: root.metadata-title;
+        book-author: root.metadata-author;
+
+        save(title, author) => {
+            root.metadata-open = false;
+            root.metadata-saved(title, author);
+        }
+
+        cancel => {
+            root.metadata-open = false;
+            root.metadata-cancelled();
+        }
     }
 }

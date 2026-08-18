@@ -15,6 +15,13 @@ pub enum Command {
     /// Delete a book from the library (soft-delete + file cleanup).
     DeleteBook { book_id: BookId },
 
+    /// Edit a book's metadata (title/author override).
+    EditMetadata {
+        book_id: BookId,
+        title: String,
+        author: Option<String>,
+    },
+
     // ── Reader ───────────────────────────────────────────────────────
     /// Open a book for reading.
     OpenBook { book_id: BookId },

@@ -7,6 +7,7 @@ import { BookCard, BookInfo } from "./BookCard.slint";
 export component LibraryScreen inherits Rectangle {
     callback import-requested();
     callback book-opened(string);
+    callback edit-requested(string);
 
     in property < bool > is-empty: true;
     in property < string > book-count-text: "0 books";
@@ -114,6 +115,7 @@ export component LibraryScreen inherits Rectangle {
                 for book in root.books: BookCard {
                     book: book;
                     clicked(id) => { root.book-opened(id); }
+                    edit-requested(id) => { root.edit-requested(id); }
                 }
             }
         }

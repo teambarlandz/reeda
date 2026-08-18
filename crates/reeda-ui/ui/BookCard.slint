@@ -14,6 +14,7 @@ export struct BookInfo {
 export component BookCard inherits Rectangle {
     in property < BookInfo > book;
     callback clicked(string);
+    callback edit-requested(string);
 
     width: 150px;
     height: 220px;
@@ -37,6 +38,28 @@ export component BookCard inherits Rectangle {
                 color: Theme.current.accent;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+
+            // Edit button (top-right corner).
+            edit-btn := Rectangle {
+                x: parent.width - 32px;
+                y: 4px;
+                width: 28px;
+                height: 28px;
+                background: #00000066;
+                border-radius: 14px;
+
+                Text {
+                    text: "…";
+                    color: white;
+                    font-size: 16pt;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    clicked => { root.edit-requested(book.book-id); }
+                }
             }
         }
 

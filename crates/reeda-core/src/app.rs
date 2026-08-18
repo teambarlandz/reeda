@@ -132,6 +132,12 @@ impl App {
 
             Command::DeleteBook { book_id } => self.delete_book(book_id),
 
+            Command::EditMetadata {
+                book_id,
+                title,
+                author,
+            } => self.edit_metadata(book_id, title, author),
+
             // ── Reader ───────────────────────────────────────────────
             Command::OpenBook { book_id } => self.open_book(book_id),
 
@@ -544,6 +550,26 @@ impl App {
     pub fn add_book(&mut self, book: Book) {
         let id = book.id;
         self.library.insert(id, book);
+    }
+
+    /// Edit a book's metadata (title/author override).
+    fn edit_metadata(&mut self, book_id: BookId, title: String, author: Option<String>) -> Vec<Event> {
+        if let Some(book) = self.library.get_mut(&book_id) {
+            let trimmed = title.trim().to_string();
+            if !trimmed.is_empty() {
+                book.title = trimmed;
+            }
+            if let Some(a) = author {
+                let trimmed = a.trim().to_string();
+                book.author = if trimmed.is_empty() { None } else { Some(trimmed) };
+            }
+            book.updated_at = chrono::Utc::now();
+            vec![Event::LibraryChanged]
+        } else {
+            vec![Event::Error {
+                message: format!("Book {book_id} not found"),
+            }]
+        }
     }
 
     /// Import a book from a file path (desktop) or SAF URI (Android).
@@ -1228,5 +1254,46 @@ mod tests {
             assert_eq!(book.last_position.as_deref(), Some("1"));
             assert!(book.progress_pct > 0.0);
         }
+    }
+
+    #[test]
+    fn edit_metadata_updates_title_and_author() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        let events = app.dispatch(Command::EditMetadata {
+            book_id,
+            title: "New Title".into(),
+            author: Some("New Author".into()),
+        });
+        assert!(matches!(&events[0], Event::LibraryChanged));
+
+        let book = app.library.get(&book_id).unwrap();
+        assert_eq!(book.title, "New Title");
+        assert_eq!(book.author.as_deref(), Some("New Author"));
+    }
+
+    #[test]
+    fn edit_metadata_clears_author_on_empty() {
+        let mut app = App::new();
+        let epub = make_test_epub_bytes();
+        let events = app.import_from_bytes(epub, "test.epub".into());
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        app.dispatch(Command::EditMetadata {
+            book_id,
+            title: "T".into(),
+            author: Some("  ".into()),
+        });
+        let book = app.library.get(&book_id).unwrap();
+        assert_eq!(book.author, None);
     }
 }

@@ -24,6 +24,22 @@ impl fmt::Display for BookId {
     }
 }
 
+impl std::str::FromStr for BookId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(uuid::Uuid::parse_str(s)?))
+    }
+}
+
+impl TryFrom<&str> for BookId {
+    type Error = uuid::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
 /// Newtype wrapper for chapter identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ChapterId(pub uuid::Uuid);
