@@ -29,7 +29,60 @@ Done. See git log for full history.
 
 ---
 
-## M2 — Library & metadata (2 weeks) — _not started_
+## M2 — Library & metadata
+
+**Exit criterion:** import 10 books, covers show, recent/continuar correct, delete works.
+
+**Plan (task order):**
+
+### M2.1 — Import pipeline: file storage + dedup
+Copy imported EPUB bytes into `books/<id>/book.epub`, SHA-256 dedup check
+(LIB-10), error classification (corrupt zip / missing OPF / unsupported version).
+`App::import_book` → stage → hash → check → copy → parse metadata → insert DB
+→ refresh library. Currently `import_from_bytes` keeps everything in memory;
+this task moves to persistent file storage.
+
+### M2.2 — Library grid Slint UI
+LibraryScreen.slint: book cards with cover thumbnail, title, author, progress
+bar. Sort buttons (recent / alphabetical). "Continue reading" section (last 8
+opened). Empty-state remains for zero books. Tap card → OpenBook. Long-press →
+context menu (edit metadata / delete). Import FAB (floating action button).
+
+### M2.3 — Cover extraction from EPUB
+During import, look for `<meta name="cover" content="..."/>` in OPF metadata,
+resolve the manifest item to an image path, extract + decode to RGBA → save as
+`covers/<id>.webp` (using image crate). Fallback: first `<img>` in first
+chapter. No-cover: show initial letter placeholder.
+
+### M2.4 — Progress save/restore via storage
+On page turn, debounce 5s → `update_book_position(book_id, cfi, progress_pct)`
+in SQLite. On `OpenBook`, read `last_position` → CFI → page lookup → restore
+current_page. Persist on `CloseBook`, `onPause`, and chapter change.
+
+### M2.5 — Metadata editing (title/author override)
+`Command::UpdateBookMetadata { book_id, title, author }` → update DB + in-memory.
+Slint: edit dialog triggered from library card long-press → pop up text fields
+→ save. `StateSnapshot.library` reflects updated title/author.
+
+### M2.6 — Settings screen v1
+New `SettingsScreen.slint` accessible from library top-bar gear icon.
+Theme picker (Light / Sepia / Dark), typography defaults (font size, line
+height, margin, justify toggle). `Command::UpdateSettings` → persist to SQLite
+`settings` table → apply theme to Slint window.
+
+### M2.7 — Tests + integration
+- Import pipeline: file copied to books/, dedup detects duplicate sha256
+- Library grid: snapshot.library populated after import
+- Cover extraction: cover_path set, file exists (test fixture)
+- Progress: open → turn page → close → reopen → same page
+- Metadata editing: title change persists in DB
+- Settings: theme change persists, load_settings round-trips
+- Clippy clean, fmt clean, 100+ total tests
+
+### M2.8 — Update TODO.md + CHANGELOG.md + commit/push
+
+---
+
 ## M3 — Highlighting & notes (3 weeks) — _not started_
 ## M4 — Full-text search (2 weeks) — _not started_
 ## M5 — Read aloud / TTS (3 weeks) — _not started_
