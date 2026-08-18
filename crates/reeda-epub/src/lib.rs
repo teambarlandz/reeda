@@ -80,6 +80,49 @@ pub fn open_epub(data: &[u8]) -> error::EpubResult<EpubBook> {
     Ok(EpubBook { opf, toc, document })
 }
 
+/// Extract the cover image bytes from raw EPUB data.
+///
+/// Resolves the cover via `meta[name="cover"]` (EPUB2) or
+/// `manifest[item properties~="cover-image"]` (EPUB3).
+/// Returns `None` if no cover is found.
+pub fn extract_cover_bytes(data: &[u8]) -> error::EpubResult<Option<Vec<u8>>> {
+    let container = container::Container::open(data)?;
+
+    let container_xml = container
+        .read_str("META-INF/container.xml")
+        .map_err(|_| error::EpubError::MissingContainer)?;
+    let rootfile_path = parse_container_rootfile(container_xml)?;
+
+    let opf_xml = container
+        .read_str(&rootfile_path)
+        .map_err(|_| error::EpubError::MissingRootfile)?;
+    let opf_dir = rootfile_path.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+    let opf = opf::parse_opf(opf_xml, opf_dir)?;
+
+    // Find cover: EPUB2 meta[name="cover"] or EPUB3 properties="cover-image".
+    let cover_href = if let Some(ref cover_id) = opf.metadata.cover_id {
+        opf.manifest.get(cover_id).map(|m| m.href.clone())
+    } else {
+        opf.manifest
+            .values()
+            .find(|m| m.properties.split_whitespace().any(|p| p == "cover-image"))
+            .map(|m| m.href.clone())
+    };
+
+    let href = match cover_href {
+        Some(h) => h,
+        None => return Ok(None),
+    };
+
+    let full_path = if opf_dir.is_empty() {
+        href
+    } else {
+        format!("{opf_dir}/{href}")
+    };
+
+    Ok(container.read(&full_path).map(|b| b.to_vec()))
+}
+
 /// Parse the rootfile path from container.xml.
 fn parse_container_rootfile(xml: &str) -> error::EpubResult<String> {
     let cleaned = error::strip_doctype(xml);
@@ -246,5 +289,54 @@ mod tests {
         }
         let err = open_epub(&buf).unwrap_err();
         assert!(err.to_string().contains("rootfile"));
+    }
+
+    fn make_test_epub_with_cover() -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let stored = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            let deflated = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+
+            zip.start_file("mimetype", stored).unwrap();
+            zip.write_all(b"application/epub+zip").unwrap();
+
+            zip.start_file("META-INF/container.xml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><container xmlns="urn:oasis:names:tc:opendocument:xmlns:container" version="1.0"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#).unwrap();
+
+            zip.start_file("OEBPS/content.opf", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Cover Book</dc:title><dc:creator>Author</dc:creator><dc:language>en</dc:language><dc:identifier id="BookId">urn:uuid:cover-001</dc:identifier><meta name="cover" content="cover-img"/></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="ch1" href="chapter1.xhtml" media-type="application/xhtml+xml"/><item id="cover-img" href="images/cover.jpg" media-type="image/jpeg"/></manifest><spine><itemref idref="ch1"/></spine></package>"#).unwrap();
+
+            zip.start_file("OEBPS/nav.xhtml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Navigation</title></head><body><nav epub:type="toc"><ol><li><a href="chapter1.xhtml">Chapter 1</a></li></ol></nav></body></html>"#).unwrap();
+
+            zip.start_file("OEBPS/chapter1.xhtml", deflated).unwrap();
+            zip.write_all(br#"<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Ch1</title></head><body><h1>Chapter 1</h1><p>Content.</p></body></html>"#).unwrap();
+
+            zip.start_file("OEBPS/images/cover.jpg", stored).unwrap();
+            zip.write_all(b"\xff\xd8\xff\xe0\x00\x10JFIF").unwrap();
+
+            zip.finish().unwrap();
+        }
+        buf
+    }
+
+    #[test]
+    fn extract_cover_returns_image_bytes() {
+        let data = make_test_epub_with_cover();
+        let cover = extract_cover_bytes(&data).unwrap();
+        assert!(cover.is_some());
+        let bytes = cover.unwrap();
+        assert!(!bytes.is_empty());
+        assert_eq!(bytes[0], 0xff); // JPEG magic
+    }
+
+    #[test]
+    fn extract_cover_no_cover_returns_none() {
+        let data = make_test_epub();
+        let cover = extract_cover_bytes(&data).unwrap();
+        assert!(cover.is_none());
     }
 }

@@ -114,8 +114,8 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
             book_id: slint::SharedString::from(b.id.to_string()),
             title: slint::SharedString::from(&b.title),
             author: slint::SharedString::from(b.author.as_deref().unwrap_or("Unknown")),
-            cover_path: slint::SharedString::from(""),
-            progress_pct: 0.0,
+            cover_path: slint::SharedString::from(b.cover_path.as_deref().unwrap_or("")),
+            progress_pct: b.progress_pct as f32,
             initial: slint::SharedString::from(initial),
         }
     }).collect();

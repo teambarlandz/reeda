@@ -578,6 +578,15 @@ impl App {
                 }];
             }
             book.file_path = store.relative_book_path(book_id, BookFormat::Epub);
+
+            // 4b. Extract and store cover image.
+            if let Ok(Some(cover_bytes)) = reeda_epub::extract_cover_bytes(&data) {
+                if let Err(e) = store.store_cover(book_id, &cover_bytes) {
+                    eprintln!("Warning: failed to store cover: {e}");
+                } else {
+                    book.cover_path = Some(store.relative_cover_path(book_id));
+                }
+            }
         }
 
         // 5. Build chapters from TOC.
