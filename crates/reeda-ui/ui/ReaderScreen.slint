@@ -1,19 +1,35 @@
 // ReaderScreen.slint — EPUB reader page canvas with chrome overlays.
-// See docs/UI_UX.md §4.
+// See docs/UI_UX.md §4 and docs/HIGHLIGHTS_SPEC.md §3.
 
 import { Theme } from "./Theme.slint";
+
+export struct LineRun {
+    text: string,
+    highlighted: bool,
+    color-index: int,
+    has-note: bool,
+    annotation-id: string,
+}
 
 export component ReaderScreen inherits Rectangle {
     callback back-pressed();
     callback toggle-chrome();
     callback next-page();
     callback prev-page();
+    callback highlight-tapped(string);
+    callback edit-color(int);
+    callback delete-highlight();
+    callback close-popover();
 
     in property < bool > chrome-visible: false;
     in property < string > book-title: "";
     in property < string > page-text: "";
     in property < float > progress-pct: 0.0;
     in property < string > progress-label: "0%";
+    in property < [[LineRun]] > page-lines: [];
+    in property < length > page-font-size: 18pt;
+    in property < float > page-line-height: 1.5;
+    in property < bool > edit-popover-visible: false;
 
     background: Theme.current.background;
 
@@ -61,11 +77,69 @@ export component ReaderScreen inherits Rectangle {
 
             VerticalLayout {
                 padding: 24px;
+                spacing: 0px;
 
-                Text {
+                for line in root.page-lines : HorizontalLayout {
+                    height: root.page-font-size * root.page-line-height;
+                    spacing: 0px;
+
+                    for run in line : Rectangle {
+                        if run.highlighted : Rectangle {
+                            x: 0;
+                            y: 0;
+                            width: parent.width;
+                            height: parent.height;
+                            background: run.color-index == 0 ? Theme.current.highlight-yellow
+                                : run.color-index == 1 ? Theme.current.highlight-green
+                                : run.color-index == 2 ? Theme.current.highlight-blue
+                                : Theme.current.highlight-pink;
+                            opacity: 0.4;
+                        }
+
+                        VerticalLayout {
+                            spacing: 0px;
+
+                            Text {
+                                text: run.text;
+                                color: Theme.current.foreground;
+                                font-size: root.page-font-size;
+                                wrap: no-wrap;
+                                horizontal-alignment: left;
+                                vertical-alignment: top;
+                            }
+                        }
+
+                        if run.highlighted : Rectangle {
+                            x: 0;
+                            y: parent.height - 1px;
+                            width: parent.width;
+                            height: 1px;
+                            background: run.color-index == 0 ? Theme.current.highlight-yellow
+                                : run.color-index == 1 ? Theme.current.highlight-green
+                                : run.color-index == 2 ? Theme.current.highlight-blue
+                                : Theme.current.highlight-pink;
+                        }
+
+                        if run.has-note : Rectangle {
+                            x: parent.width - 8px;
+                            y: parent.height - 8px;
+                            width: 6px;
+                            height: 6px;
+                            border-radius: 3px;
+                            background: Theme.current.accent;
+                        }
+
+                        if run.highlighted : TouchArea {
+                            clicked => { root.highlight-tapped(run.annotation-id); }
+                        }
+                    }
+                }
+
+                // Legacy fallback when no lines are computed.
+                if root.page-lines.length == 0 : Text {
                     text: root.page-text;
                     color: Theme.current.foreground;
-                    font-size: 18pt;
+                    font-size: root.page-font-size;
                     wrap: word-wrap;
                     horizontal-alignment: left;
                 }
@@ -98,6 +172,94 @@ export component ReaderScreen inherits Rectangle {
                     font-size: 12pt;
                     color: Theme.current.foreground;
                     opacity: 0.7;
+                }
+            }
+        }
+    }
+
+    // Highlight edit popover (top-right of the page area).
+    if root.edit-popover-visible : Rectangle {
+        x: parent.width - 220px;
+        y: 8px;
+        width: 200px;
+        height: 116px;
+        background: Theme.current.surface;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: Theme.current.surface_variant;
+
+        VerticalLayout {
+            padding: 12px;
+            spacing: 8px;
+
+            Text {
+                text: "Highlight";
+                font-size: 12pt;
+                font-weight: 600;
+                color: Theme.current.foreground;
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: Theme.current.highlight-yellow;
+                    TouchArea {
+                        clicked => { root.edit-color(0); }
+                    }
+                }
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: Theme.current.highlight-green;
+                    TouchArea {
+                        clicked => { root.edit-color(1); }
+                    }
+                }
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: Theme.current.highlight-blue;
+                    TouchArea {
+                        clicked => { root.edit-color(2); }
+                    }
+                }
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: Theme.current.highlight-pink;
+                    TouchArea {
+                        clicked => { root.edit-color(3); }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 12px;
+
+                Text {
+                    text: "Delete";
+                    font-size: 11pt;
+                    color: Theme.current.error;
+                    TouchArea {
+                        clicked => { root.delete-highlight(); }
+                    }
+                }
+
+                Text {
+                    text: "Cancel";
+                    font-size: 11pt;
+                    color: Theme.current.foreground;
+                    opacity: 0.7;
+                    TouchArea {
+                        clicked => { root.close-popover(); }
+                    }
                 }
             }
         }

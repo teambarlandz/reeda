@@ -4,7 +4,7 @@ export { Theme } from "./Theme.slint";
 import { Theme } from "./Theme.slint";
 import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
-import { ReaderScreen } from "./ReaderScreen.slint";
+import { ReaderScreen, LineRun } from "./ReaderScreen.slint";
 import { SettingsScreen } from "./SettingsScreen.slint";
 import { ErrorDialog, MetadataDialog } from "./Dialogs.slint";
 
@@ -44,12 +44,20 @@ export component AppRoot inherits Window {
     in-out property < bool > chrome-visible: false;
     in-out property < float > progress-pct: 0.0;
     in-out property < string > progress-label: "0%";
+    in-out property < [[LineRun]] > reader-page-lines: [];
+    in-out property < length > reader-page-font-size: 18pt;
+    in-out property < float > reader-page-line-height: 1.5;
+    in-out property < bool > reader-edit-popover-visible: false;
 
     // ── Reader callbacks ────────────────────────────────────────────
     callback next-page();
     callback prev-page();
     callback back-pressed();
     callback toggle-chrome();
+    callback highlight-tapped(string);
+    callback edit-color(int);
+    callback delete-highlight();
+    callback close-popover();
     callback import-requested();
     callback metadata-requested(string);
     callback metadata-saved(string, string);
@@ -88,6 +96,10 @@ export component AppRoot inherits Window {
         chrome-visible: root.chrome-visible;
         progress-pct: root.progress-pct;
         progress-label: root.progress-label;
+        page-lines: root.reader-page-lines;
+        page-font-size: root.reader-page-font-size;
+        page-line-height: root.reader-page-line-height;
+        edit-popover-visible: root.reader-edit-popover-visible;
 
         back-pressed => {
             root.show-reader = false;
@@ -98,6 +110,10 @@ export component AppRoot inherits Window {
         next-page => { root.next-page(); }
         prev-page => { root.prev-page(); }
         toggle-chrome => { root.chrome-visible = !root.chrome-visible; }
+        highlight-tapped(id) => { root.highlight-tapped(id); }
+        edit-color(i) => { root.edit-color(i); }
+        delete-highlight => { root.delete-highlight(); }
+        close-popover => { root.reader-edit-popover-visible = false; }
     }
 
     if root.show-settings : SettingsScreen {

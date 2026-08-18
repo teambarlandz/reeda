@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::commands::Command;
 use crate::events::{Event, NarrationState};
-use crate::models::{Annotation, AnnotationKind, AppSettings, Book, BookId, Chapter};
+use crate::models::{Annotation, AnnotationKind, AppSettings, Book, BookId, Chapter, LineRun};
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
 use crate::storage::{Database, StorageResult};
 use crate::store::BookStore;
@@ -33,6 +33,8 @@ pub struct StateSnapshot {
     pub page_chapter_title: String,
     /// Block-level content of the current page (for rich rendering).
     pub page_blocks: Vec<PageBlock>,
+    /// Renderable lines of the current page (plain + highlighted runs).
+    pub page_lines: Vec<Vec<LineRun>>,
     /// Table of contents labels for the current book.
     pub toc_labels: Vec<String>,
 }
@@ -51,6 +53,7 @@ impl Default for StateSnapshot {
             page_text: String::new(),
             page_chapter_title: String::new(),
             page_blocks: Vec::new(),
+            page_lines: Vec::new(),
             toc_labels: Vec::new(),
         }
     }
@@ -432,18 +435,46 @@ impl App {
         });
 
         // Page content from reader state.
-        let (page_text, page_chapter_title, page_blocks, toc_labels) =
+        let (page_text, page_chapter_title, page_blocks, page_lines, toc_labels) =
             if let (Some(book_id), Some(ref rs)) = (self.current_book_id, &self.reader_state) {
                 if let Some(parsed) = self.parsed_docs.get(&book_id) {
                     let content = rs.current_page_content(&parsed.document);
                     let toc: Vec<String> =
                         parsed.toc.items.iter().map(|i| i.label.clone()).collect();
-                    (content.text, content.chapter_title, content.blocks, toc)
+                    let layout = typography_to_layout(&self.settings.typography, 400.0, 700.0);
+                    let annotations: Vec<Annotation> =
+                        self.annotations.get(&book_id).cloned().unwrap_or_default();
+                    let lines = reader::build_page_lines(
+                        &parsed.document,
+                        &rs.pages,
+                        self.current_page as usize,
+                        layout.chars_per_line(),
+                        &annotations,
+                    );
+                    (
+                        content.text,
+                        content.chapter_title,
+                        content.blocks,
+                        lines,
+                        toc,
+                    )
                 } else {
-                    (String::new(), String::new(), Vec::new(), Vec::new())
+                    (
+                        String::new(),
+                        String::new(),
+                        Vec::new(),
+                        Vec::new(),
+                        Vec::new(),
+                    )
                 }
             } else {
-                (String::new(), String::new(), Vec::new(), Vec::new())
+                (
+                    String::new(),
+                    String::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                )
             };
 
         StateSnapshot {
@@ -458,6 +489,7 @@ impl App {
             page_text,
             page_chapter_title,
             page_blocks,
+            page_lines,
             toc_labels,
         }
     }

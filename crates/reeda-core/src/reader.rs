@@ -5,11 +5,15 @@
 /// reader-side state mutations.
 use std::collections::HashMap;
 
+use reeda_epub::cfi::{Cfi, CfiRange as EpubCfiRange};
 use reeda_epub::document::{self, DocumentModel};
 use reeda_epub::nav::TableOfContents;
 use reeda_epub::paginator::{self, PageLayout, Pages};
+use reeda_epub::selection::{intersect_range_with_page, GlobalRange};
 
-use crate::models::{BookId, Chapter, Typography};
+use crate::models::{
+    Annotation, AnnotationKind, BookId, Chapter, HighlightColor, LineRun, Typography,
+};
 
 /// A rendered page's text content, ready for the Slint UI.
 #[derive(Debug, Clone, Default)]
@@ -177,6 +181,146 @@ pub fn extract_page_content(doc: &DocumentModel, pages: &Pages, page_idx: usize)
         chapter_title,
         blocks,
     }
+}
+
+/// A clipped highlight segment on a page, ready for line rendering.
+#[derive(Debug, Clone)]
+struct PageHighlightSegment {
+    /// Global block index.
+    block_index: usize,
+    /// Inclusive character offset within the block.
+    char_start: usize,
+    /// Exclusive character offset within the block.
+    char_end: usize,
+    /// Highlight color.
+    color: HighlightColor,
+    /// Whether the highlight has an attached note.
+    has_note: bool,
+    /// Annotation ID (for tap-to-edit).
+    annotation_id: String,
+}
+
+/// Build renderable lines for a page.
+///
+/// Blocks are split into lines of `chars_per_line` characters (matching the
+/// paginator's approximation), and highlight segments are clipped per line,
+/// producing plain + highlighted `LineRun`s. Overlapping highlights resolve
+/// first-wins in annotation order.
+pub fn build_page_lines(
+    doc: &DocumentModel,
+    pages: &Pages,
+    page_idx: usize,
+    chars_per_line: usize,
+    annotations: &[Annotation],
+) -> Vec<Vec<LineRun>> {
+    if page_idx >= pages.pages.len() {
+        return Vec::new();
+    }
+    let page = &pages.pages[page_idx];
+    let spine_length = doc.chapters.len() as u32;
+    let chars_per_line = chars_per_line.max(1);
+
+    // Collect highlight segments intersecting this page.
+    let mut segments: Vec<PageHighlightSegment> = Vec::new();
+    for ann in annotations {
+        if ann.deleted_at.is_some() || ann.kind != AnnotationKind::Highlight {
+            continue;
+        }
+        let Some(cfi) = &ann.cfi else { continue };
+        let range = EpubCfiRange {
+            start: Cfi(cfi.start.clone()),
+            end: Cfi(cfi.end.clone()),
+        };
+        let Some(gr) = GlobalRange::from_cfi(&range, spine_length) else {
+            continue;
+        };
+        let Some(segs) = intersect_range_with_page(&gr, page) else {
+            continue;
+        };
+        let color = ann.color.unwrap_or(HighlightColor::Yellow);
+        let has_note = ann.text.as_ref().is_some_and(|t| !t.is_empty());
+        let annotation_id = ann.id.0.to_string();
+        for seg in segs {
+            segments.push(PageHighlightSegment {
+                block_index: seg.block_index,
+                char_start: seg.char_start,
+                char_end: seg.char_end,
+                color,
+                has_note,
+                annotation_id: annotation_id.clone(),
+            });
+        }
+    }
+
+    let mut lines = Vec::new();
+    for block_idx in page.first_block..=page.last_block.min(doc.total_blocks().saturating_sub(1)) {
+        let Some((_chapter, block, _local)) = doc.block_at(block_idx) else {
+            continue;
+        };
+        let (start_char, end_char) =
+            if block_idx == page.first_block && block_idx == page.last_block {
+                (page.first_char as usize, page.last_char as usize)
+            } else if block_idx == page.first_block {
+                (page.first_char as usize, usize::MAX)
+            } else if block_idx == page.last_block {
+                (0, page.last_char as usize)
+            } else {
+                (0, usize::MAX)
+            };
+
+        let text = block_to_text(block);
+        let block_start = start_char.min(text.len());
+        let block_end = end_char.min(text.len());
+
+        let block_segments: Vec<&PageHighlightSegment> = segments
+            .iter()
+            .filter(|s| s.block_index == block_idx)
+            .collect();
+
+        let mut line_start = block_start;
+        while line_start < block_end {
+            let line_end = (line_start + chars_per_line).min(block_end);
+            lines.push(build_line(&text, line_start, line_end, &block_segments));
+            line_start = line_end;
+        }
+    }
+    lines
+}
+
+/// Split a block's char range `[line_start, line_end)` into runs,
+/// highlighting the parts covered by segments (first-wins).
+fn build_line(
+    text: &str,
+    line_start: usize,
+    line_end: usize,
+    segments: &[&PageHighlightSegment],
+) -> Vec<LineRun> {
+    let mut sorted: Vec<&&PageHighlightSegment> = segments.iter().collect();
+    sorted.sort_by_key(|s| s.char_start);
+
+    let mut runs = Vec::new();
+    let mut pos = line_start;
+    for seg in sorted {
+        let s = seg.char_start.max(line_start);
+        let e = seg.char_end.min(line_end);
+        if s >= e || s < pos {
+            continue; // no room left on this line, or overlap (first wins)
+        }
+        if s > pos {
+            runs.push(LineRun::plain(text[pos..s].to_string()));
+        }
+        runs.push(LineRun::highlight(
+            text[s..e].to_string(),
+            seg.color,
+            seg.has_note,
+            seg.annotation_id.clone(),
+        ));
+        pos = e;
+    }
+    if pos < line_end {
+        runs.push(LineRun::plain(text[pos..line_end].to_string()));
+    }
+    runs
 }
 
 /// Flatten a block to plain text.
@@ -540,5 +684,111 @@ mod tests {
         // May or may not find a page (depends on how CFI maps to block indices),
         // but should not panic.
         let _ = idx;
+    }
+
+    fn test_highlight_annotation(doc: &DocumentModel) -> Annotation {
+        // Highlight chars 5..15 of block 1 (the first paragraph).
+        let range = GlobalRange::new(1, 5, 1, 15).to_cfi();
+        Annotation::new_highlight(
+            BookId::new(),
+            crate::models::CfiRange::new(range.start.0, range.end.0),
+            HighlightColor::Yellow,
+            Some("first para".into()),
+        )
+    }
+
+    #[test]
+    fn build_page_lines_plain_text() {
+        let doc = test_doc();
+        let layout = PageLayout {
+            width: 200.0,
+            height: 400.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        let lines = build_page_lines(&doc, &pages, 0, layout.chars_per_line(), &[]);
+        assert!(!lines.is_empty());
+        // All runs plain, no highlight.
+        for line in &lines {
+            for run in line {
+                assert!(!run.highlighted);
+            }
+        }
+        // Concatenated text equals the page text (newlines are visual
+        // line separators in the UI, not part of run text).
+        let joined: String = lines
+            .iter()
+            .flat_map(|line| line.iter().map(|r| r.text.as_str()))
+            .collect();
+        let content = extract_page_content(&doc, &pages, 0);
+        let expected: String = content.text.chars().filter(|c| *c != '\n').collect();
+        assert_eq!(joined, expected);
+    }
+
+    #[test]
+    fn build_page_lines_with_highlight() {
+        let doc = test_doc();
+        let layout = PageLayout {
+            width: 200.0,
+            height: 400.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        let ann = test_highlight_annotation(&doc);
+        let lines = build_page_lines(&doc, &pages, 0, layout.chars_per_line(), &[ann.clone()]);
+
+        let highlighted: Vec<&LineRun> = lines
+            .iter()
+            .flat_map(|l| l.iter())
+            .filter(|r| r.highlighted)
+            .collect();
+        assert!(!highlighted.is_empty());
+        for run in &highlighted {
+            assert_eq!(run.color, Some(HighlightColor::Yellow));
+            assert_eq!(
+                run.annotation_id.as_deref(),
+                Some(ann.id.0.to_string().as_str())
+            );
+        }
+    }
+
+    #[test]
+    fn build_page_lines_empty_doc() {
+        let doc = DocumentModel::default();
+        let pages = Pages {
+            pages: vec![Page {
+                first_block: 0,
+                first_char: 0,
+                last_block: 0,
+                last_char: 0,
+                progress: 1.0,
+            }],
+            total_chars: 0,
+            layout_hash: 0,
+        };
+        let lines = build_page_lines(&doc, &pages, 0, 40, &[]);
+        assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn build_page_lines_out_of_range_page() {
+        let doc = test_doc();
+        let layout = PageLayout {
+            width: 200.0,
+            height: 400.0,
+            font_size: 18.0,
+            line_height: 1.5,
+            margin_h: 4.0,
+            margin_v: 4.0,
+        };
+        let pages = paginate_doc(&doc, &layout);
+        let lines = build_page_lines(&doc, &pages, 999, 40, &[]);
+        assert!(lines.is_empty());
     }
 }

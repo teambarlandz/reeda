@@ -200,6 +200,65 @@ fn main() {
         }
     });
 
+    // ── Highlight editing ───────────────────────────────────────────
+    let selected_highlight: std::rc::Rc<std::cell::RefCell<Option<String>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+
+    app.on_highlight_tapped({
+        let weak = weak.clone();
+        let selected = selected_highlight.clone();
+        move |id: slint::SharedString| {
+            *selected.borrow_mut() = Some(id.to_string());
+            let app = weak.unwrap();
+            app.set_reader_edit_popover_visible(true);
+        }
+    });
+
+    app.on_edit_color({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        let selected = selected_highlight.clone();
+        move |index: i32| {
+            let color = match index {
+                0 => reeda_core::HighlightColor::Yellow,
+                1 => reeda_core::HighlightColor::Green,
+                2 => reeda_core::HighlightColor::Blue,
+                _ => reeda_core::HighlightColor::Pink,
+            };
+            if let Some(id) = selected.borrow().clone() {
+                if let Ok(annotation_id) = id.parse() {
+                    let mut core = core_cell.borrow_mut();
+                    core.dispatch(reeda_core::Command::EditHighlight {
+                        annotation_id,
+                        color: Some(color),
+                    });
+                }
+            }
+            let app = weak.unwrap();
+            app.set_reader_edit_popover_visible(false);
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_delete_highlight({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        let selected = selected_highlight.clone();
+        move || {
+            if let Some(id) = selected.borrow().clone() {
+                if let Ok(annotation_id) = id.parse() {
+                    let mut core = core_cell.borrow_mut();
+                    core.dispatch(reeda_core::Command::DeleteAnnotation { annotation_id });
+                }
+            }
+            let app = weak.unwrap();
+            app.set_reader_edit_popover_visible(false);
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -213,6 +272,38 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         app.set_show_reader(true);
         app.set_book_title(slint::SharedString::from(&book.title));
         app.set_page_text(slint::SharedString::from(&snap.page_text));
+        app.set_reader_page_font_size(snap.settings.typography.font_size_pt);
+        app.set_reader_page_line_height(snap.settings.typography.line_height);
+
+        let lines_model: Vec<slint::ModelRc<LineRun>> = snap
+            .page_lines
+            .iter()
+            .map(|line| {
+                let runs: Vec<LineRun> = line
+                    .iter()
+                    .map(|r| {
+                        let color_index = match r.color {
+                            Some(reeda_core::HighlightColor::Yellow) => 0,
+                            Some(reeda_core::HighlightColor::Green) => 1,
+                            Some(reeda_core::HighlightColor::Blue) => 2,
+                            Some(reeda_core::HighlightColor::Pink) => 3,
+                            None => 0,
+                        };
+                        LineRun {
+                            text: slint::SharedString::from(&r.text),
+                            highlighted: r.highlighted,
+                            color_index,
+                            has_note: r.has_note,
+                            annotation_id: slint::SharedString::from(
+                                r.annotation_id.as_deref().unwrap_or(""),
+                            ),
+                        }
+                    })
+                    .collect();
+                slint::ModelRc::from(runs.as_slice())
+            })
+            .collect();
+        app.set_reader_page_lines(slint::ModelRc::from(lines_model.as_slice()));
 
         let progress = if snap.total_pages > 0 {
             (snap.current_page as f32 / snap.total_pages as f32 * 100.0) as i32

@@ -74,6 +74,22 @@ impl Default for AnnotationId {
     }
 }
 
+impl std::str::FromStr for AnnotationId {
+    type Err = uuid::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(uuid::Uuid::parse_str(s)?))
+    }
+}
+
+impl TryFrom<&str> for AnnotationId {
+    type Error = uuid::Error;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        value.parse()
+    }
+}
+
 /// Newtype wrapper for shelf identifiers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ShelfId(pub uuid::Uuid);
