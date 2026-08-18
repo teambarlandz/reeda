@@ -4543,6 +4543,9 @@ dependencies = [
 [[package]]
 name = "reeda-tts"
 version = "0.1.0"
+dependencies = [
+ "reeda-epub",
+]
 
 [[package]]
 name = "reeda-ui"

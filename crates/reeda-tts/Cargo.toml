@@ -13,3 +13,4 @@ platform-desktop = []   # stub host platform for dev builds
 platform-android = []   # JNI bridge to android.speech.tts.TextToSpeech
 
 [dependencies]
+reeda-epub = { path = "../reeda-epub" }
