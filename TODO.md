@@ -49,7 +49,49 @@ buttons (M2.2) not yet in UI; CSS subset engine (M1.4) still deferred.
 
 ---
 
-## M3 — Highlighting & notes (3 weeks) — _not started_
+## M3 — Highlighting & notes (3 weeks)
+
+**Exit criterion:** highlight a passage, kill the app, relaunch → highlight + note
+intact at correct position with different font size.
+
+**Plan (task order):**
+
+### M3.1 — Selection + intersection engine (core)
+`selection.rs` in reeda-core: `locator_of_global_block()` (global block → spine/block
+Locator), `LocatorRange` from (block, char_start, char_end), CFI anchoring via
+`cfi::Cfi::from_locator`, and `intersect_range_with_page()` — clip a CfiRange to a
+page's visible segments for rendering. Tests: intersection math, cross-block ranges,
+page-clipping, CFI round-trips.
+
+### M3.2 — Highlight rendering in reader (UI)
+`PageContent` gains `highlight_segments` (block, char_start, char_end, color, has_note).
+ReaderScreen renders per-line segments with translucent colored backgrounds + underline
+(HIGHLIGHTS_SPEC §3). Tap highlight → popover: edit color (4 swatches) / delete.
+App commands wired: AddHighlight/EditHighlight/DeleteAnnotation already exist — connect
+to UI callbacks + snapshot.
+
+### M3.3 — Notes attach + notes list screen
+`AddNote` command wired end-to-end (attach to highlight / standalone). New NotesScreen:
+per-book list of highlights+notes grouped by chapter, snippet text, color chip, date;
+tap → jump to location (HIL-06).
+
+### M3.4 — Bookmarks + bookmarks list
+Chrome ribbon toggle button; icon state derived from current page CFI (filled when page
+start CFI equals bookmark). Bookmarks list screen: tap → jump, delete. Uses existing
+`ToggleBookmark`.
+
+### M3.5 — Export highlights/notes (Markdown)
+`export_markdown(book)` in core per HIGHLIGHTS_SPEC §4 format. Android: share sheet
+(ACTION_SEND, text/plain); desktop: write `books/<id>/annotations.md` + print path.
+
+### M3.6 — Persistence wiring + position invariance + docs
+Wire annotation CRUD to SQLite in App commands (insert/soft-delete/list on open).
+Font-size change invariance test (HIL-08): same CFI → same geometry per layout (golden
+tests). Restart persistence integration test. Update TODO.md + CHANGELOG.md + README.md
++ commit/push.
+
+---
+
 ## M4 — Full-text search (2 weeks) — _not started_
 ## M5 — Read aloud / TTS (3 weeks) — _not started_
 ## M6 — PDF support (3 weeks) — _not started_
