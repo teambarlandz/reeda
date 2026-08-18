@@ -586,6 +586,119 @@ fn main() {
         }
     });
 
+    // ── Narration (TTS bar) ───────────────────────────────────────────
+    app.on_narration_play_pause({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let command = match core_cell.borrow().snapshot().narration_state {
+                reeda_core::NarrationState::Paused => reeda_core::Command::ResumeNarration,
+                _ => reeda_core::Command::PauseNarration,
+            };
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(command);
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    app.on_narration_stop({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::StopNarration);
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    fn narration_skip(
+        delta: isize,
+        core_cell: &std::rc::Rc<std::cell::RefCell<reeda_core::App>>,
+        weak: &slint::Weak<crate::AppRoot>,
+    ) {
+        {
+            let mut core = core_cell.borrow_mut();
+            core.dispatch(reeda_core::Command::NarrationSkip { delta });
+        }
+        let app = weak.unwrap();
+        let snap = core_cell.borrow().snapshot();
+        update_ui(&app, &snap);
+    }
+
+    app.on_narration_skip_back({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || narration_skip(-1, &core_cell, &weak)
+    });
+
+    app.on_narration_skip_forward({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || narration_skip(1, &core_cell, &weak)
+    });
+
+    app.on_narration_speed_cycle({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let current = core_cell.borrow().snapshot().settings.tts_speed;
+            let next = {
+                let step = (current * 10.0).round() / 10.0;
+                let bumped = step + 0.1;
+                if bumped > 2.5 + f32::EPSILON {
+                    0.5
+                } else {
+                    bumped
+                }
+            };
+            {
+                let mut core = core_cell.borrow_mut();
+                core.dispatch(reeda_core::Command::SetTtsSpeed(next));
+            }
+            let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    // Poll narration host callbacks (word highlights / chunk completion).
+    // Runs always; polling an idle engine is a no-op.
+    let narration_timer = slint::Timer::default();
+    narration_timer.start(
+        slint::TimerMode::Repeated,
+        std::time::Duration::from_millis(300),
+        {
+            let weak = weak.clone();
+            let core_cell = core_cell.clone();
+            move || {
+                let active = {
+                    let snap = core_cell.borrow().snapshot();
+                    matches!(
+                        snap.narration_state,
+                        reeda_core::NarrationState::Speaking | reeda_core::NarrationState::Paused
+                    )
+                };
+                if active {
+                    {
+                        let mut core = core_cell.borrow_mut();
+                        core.dispatch(reeda_core::Command::PollNarration);
+                    }
+                    let app = weak.unwrap();
+                    let snap = core_cell.borrow().snapshot();
+                    update_ui(&app, &snap);
+                }
+            }
+        },
+    );
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -690,6 +803,20 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
     } else {
         app.set_reader_search_count(slint::SharedString::from(""));
     }
+
+    // Narration bar state.
+    let narrating = matches!(
+        snap.narration_state,
+        reeda_core::NarrationState::Speaking
+            | reeda_core::NarrationState::Paused
+            | reeda_core::NarrationState::Loading
+    );
+    app.set_narration_active(narrating);
+    app.set_narration_paused(snap.narration_state == reeda_core::NarrationState::Paused);
+    app.set_narration_speed_text(slint::SharedString::from(format!(
+        "{:.1}x",
+        snap.settings.tts_speed
+    )));
 
     // Notes list state.
     let notes_model: Vec<NotesEntry> = snap

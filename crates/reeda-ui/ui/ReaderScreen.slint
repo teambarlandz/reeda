@@ -29,6 +29,11 @@ export component ReaderScreen inherits Rectangle {
     callback search-next();
     callback search-prev();
     callback search-close();
+    callback narration-play-pause();
+    callback narration-stop();
+    callback narration-skip-back();
+    callback narration-skip-forward();
+    callback narration-speed-cycle();
 
     in property < bool > chrome-visible: false;
     in property < string > book-title: "";
@@ -43,6 +48,9 @@ export component ReaderScreen inherits Rectangle {
     in property < bool > search-open: false;
     in property < string > search-query: "";
     in property < string > search-count: "";
+    in property < bool > narration-active: false;
+    in property < bool > narration-paused: false;
+    in property < string > narration-speed-text: "1.0x";
 
     background: Theme.current.background;
 
@@ -338,6 +346,78 @@ export component ReaderScreen inherits Rectangle {
                         TouchArea {
                             clicked => { root.notes-requested(); }
                         }
+                    }
+                }
+            }
+        }
+
+        // Narration bar (always visible while narrating, spec §6).
+        if root.narration-active : Rectangle {
+            height: 52px;
+            background: Theme.current.surface;
+            border-radius: 0px;
+            border-width: 0px;
+            border-color: Theme.current.surface_variant;
+
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 10px;
+                alignment: center;
+
+                Text {
+                    text: "⏮";
+                    font-size: 18pt;
+                    color: Theme.current.foreground;
+                    vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.narration-skip-back(); }
+                    }
+                }
+
+                Text {
+                    text: root.narration-paused ? "▶" : "⏸";
+                    font-size: 22pt;
+                    color: Theme.current.accent;
+                    vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.narration-play-pause(); }
+                    }
+                }
+
+                Text {
+                    text: "⏹";
+                    font-size: 18pt;
+                    color: Theme.current.error;
+                    vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.narration-stop(); }
+                    }
+                }
+
+                Text {
+                    text: "⏭";
+                    font-size: 18pt;
+                    color: Theme.current.foreground;
+                    vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.narration-skip-forward(); }
+                    }
+                }
+
+                Text {
+                    text: root.narration-speed-text;
+                    font-size: 12pt;
+                    font-weight: 600;
+                    color: Theme.current.accent;
+                    vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.narration-speed-cycle(); }
                     }
                 }
             }

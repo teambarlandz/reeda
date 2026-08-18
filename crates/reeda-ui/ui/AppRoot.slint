@@ -34,6 +34,11 @@ export component AppRoot inherits Window {
     in-out property < string > reader-search-query: "";
     in-out property < string > reader-search-count: "";
 
+    // ── Narration (TTS bar) ─────────────────────────────────────────
+    in-out property < bool > narration-active: false;
+    in-out property < bool > narration-paused: false;
+    in-out property < string > narration-speed-text: "1.0x";
+
     // ── Notes list ──────────────────────────────────────────────────
     in-out property < [NotesEntry] > notes-entries: [];
     in-out property < bool > note-dialog-open: false;
@@ -112,6 +117,11 @@ export component AppRoot inherits Window {
     callback reader-search-next();
     callback reader-search-prev();
     callback reader-search-close();
+    callback narration-play-pause();
+    callback narration-stop();
+    callback narration-skip-back();
+    callback narration-skip-forward();
+    callback narration-speed-cycle();
 
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
@@ -156,6 +166,9 @@ export component AppRoot inherits Window {
         search-open: root.reader-search-open;
         search-query: root.reader-search-query;
         search-count: root.reader-search-count;
+        narration-active: root.narration-active;
+        narration-paused: root.narration-paused;
+        narration-speed-text: root.narration-speed-text;
 
         back-pressed => {
             root.show-reader = false;
@@ -208,6 +221,12 @@ export component AppRoot inherits Window {
             root.reader-search-count = "";
             root.reader-search-close();
         }
+
+        narration-play-pause => { root.narration-play-pause(); }
+        narration-stop => { root.narration-stop(); }
+        narration-skip-back => { root.narration-skip-back(); }
+        narration-skip-forward => { root.narration-skip-forward(); }
+        narration-speed-cycle => { root.narration-speed-cycle(); }
     }
 
     if root.show-notes : NotesScreen {
