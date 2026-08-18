@@ -11,6 +11,17 @@ fn main() {
     // ── Create core App ─────────────────────────────────────────────
     let mut core = reeda_core::App::new();
 
+    // Android: swap in the JNI TextToSpeech host (TTS_SPEC §2).
+    // The host self-initializes the TtsShim singleton; foreground service,
+    // audio focus and wake-lock land with device verification (M5.5).
+    #[cfg(feature = "platform-android")]
+    {
+        match crate::android::create_tts_host() {
+            Ok(host) => core.set_tts_host(host),
+            Err(e) => eprintln!("TTS unavailable: {e} (narration disabled)"),
+        }
+    }
+
     // Persistent storage + full-text search index (desktop: ./reeda_data).
     // Books imported this session are searchable immediately; re-indexing
     // of books loaded from storage is a P2 follow-up (see TODO M4.7).

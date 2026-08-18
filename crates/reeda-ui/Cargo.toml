@@ -10,10 +10,11 @@ description = "Reeda Slint application frontend (Android target)."
 [features]
 default = ["platform-desktop"]
 platform-desktop = ["slint/backend-winit", "slint/renderer-femtovg"]
-platform-android = ["slint/backend-android-activity-06"]
+platform-android = ["slint/backend-android-activity-06", "reeda-tts/platform-android", "dep:reeda-tts"]
 
 [dependencies]
 reeda-core.workspace = true
+reeda-tts = { path = "../reeda-tts", optional = true }
 slint = "1.9"
 
 [build-dependencies]

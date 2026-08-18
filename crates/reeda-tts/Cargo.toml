@@ -10,7 +10,9 @@ description = "Reeda read-aloud: narration engine + Android TextToSpeech JNI bri
 [features]
 default = ["platform-desktop"]
 platform-desktop = []   # stub host platform for dev builds
-platform-android = []   # JNI bridge to android.speech.tts.TextToSpeech
+platform-android = ["dep:jni", "dep:ndk-context"]   # JNI bridge to android.speech.tts.TextToSpeech
 
 [dependencies]
 reeda-epub = { path = "../reeda-epub" }
+jni = { version = "0.21", optional = true }
+ndk-context = { version = "0.1", optional = true }

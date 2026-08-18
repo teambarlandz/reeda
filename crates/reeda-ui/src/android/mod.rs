@@ -6,7 +6,8 @@
 //!
 //! All items in this module are gated behind `#[cfg(feature = "platform-android")]`.
 
-use reeda_core::platform::{AndroidPlatform, Platform, PlatformResult};
+use reeda_core::platform::android::AndroidPlatform;
+use reeda_core::platform::{Platform, PlatformResult};
 
 /// Pick a file via SAF (Storage Access Framework).
 ///
@@ -27,6 +28,16 @@ pub fn get_intent_data() -> PlatformResult<Option<String>> {
 /// Returns `true` if granted, `false` if denied.
 pub fn request_permission(permission: &str) -> PlatformResult<bool> {
     AndroidPlatform::default().request_permission(permission)
+}
+
+/// Create the JNI-backed TTS host for the narration engine.
+///
+/// Initializes `io.reeda.app.TtsShim` on the current thread and returns a
+/// host whose callbacks are drained by the engine's `PollNarration` loop.
+/// Called once at startup on `platform-android` builds.
+pub fn create_tts_host() -> Result<Box<dyn reeda_tts::engine::TtsHost>, String> {
+    reeda_tts::android_bridge::AndroidTtsHost::new()
+        .map(|host| Box::new(host) as Box<dyn reeda_tts::engine::TtsHost>)
 }
 
 #[cfg(test)]

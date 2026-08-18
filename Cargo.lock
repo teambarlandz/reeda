@@ -4545,6 +4545,8 @@ dependencies = [
 name = "reeda-tts"
 version = "0.1.0"
 dependencies = [
+ "jni 0.21.1",
+ "ndk-context",
  "reeda-epub",
 ]
 
@@ -4553,6 +4555,7 @@ name = "reeda-ui"
 version = "0.1.0"
 dependencies = [
  "reeda-core",
+ "reeda-tts",
  "slint",
  "slint-build",
 ]

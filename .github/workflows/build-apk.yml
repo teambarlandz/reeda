@@ -37,8 +37,8 @@ jobs:
       - name: Install cargo-apk
         run: cargo install cargo-apk cargo-ndk --locked
 
-      - name: Build debug APK
-        run: cargo apk build -p reeda-ui
+      - name: Build debug APK (platform-android)
+        run: cargo apk build -p reeda-ui --no-default-features --features platform-android
 
       - name: Collect artifacts
         run: |
@@ -55,3 +55,23 @@ jobs:
           name: reeda-debug-${{ matrix.abi }}
           path: artifacts/
           retention-days: 30
+
+  tts-bridge:
+    name: TTS bridge compile check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Android NDK
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+
+      - name: Check JNI bridge for Android target
+        run: cargo check -p reeda-tts --no-default-features --features platform-android --target aarch64-linux-android

@@ -12,6 +12,10 @@ pub mod chunk;
 /// Narration engine: state machine + host trait (`TtsHost`, `FakeTtsHost`).
 pub mod engine;
 
+/// Android TextToSpeech JNI bridge (`AndroidTtsHost`, feature-gated).
+#[cfg(feature = "platform-android")]
+pub mod android_bridge;
+
 /// Returns the current reeda-tts crate version.
 pub fn crate_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
