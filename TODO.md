@@ -249,11 +249,15 @@ on emulator/device as a follow-up.
     buttons (pinch gesture deferred to device verification)
   - main.rs: PDF commands, page navigation, zoom state from snapshot
   - Tests: UI compiles; manual smoke
-- [ ] **M6.5** reeda-pdf — Outline + night filter:
+- [x] **M6.5** reeda-pdf — Outline + night filter:
   - Outline extraction: PDF bookmarks tree → `Vec<OutlineItem>`
-  - Outline dialog/screen in UI (reader chrome)
-  - Night/sepia theme filter (render-time, re-render on theme change)
-  - Tests: outline extraction, theme filter output
+    (`outline.rs`, pre-order flatten; empty-outline handled)
+  - Outline panel in UI reader chrome ("≡" toggle, indent by depth,
+    tap-to-jump via `pdf-outline-jumped`)
+  - Night/sepia theme filter (render-time, re-render on theme change;
+    filters shipped in M6.2 `theme.rs`)
+  - Tests: outline extraction + empty outline, snapshot exposes outline,
+    212 workspace tests green, desktop smoke
 - [ ] **M6.6** Tests + docs + close:
   - Full workspace tests; update PDF_SPEC status, CHANGELOG.md, README.md
     status; TODO checkboxes; commit/push

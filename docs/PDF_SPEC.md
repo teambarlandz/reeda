@@ -17,8 +17,12 @@
 - `PdfDocument { path, page_count, page_sizes, outline }` opened lazily.
 - Page size: points → px at 96 dpi base (72 pt = 96 px), used for
   fit-to-width and aspect-correct rasterization.
-- Outline: PDF bookmarks tree → Slint list (PDF-04). Links inside pages
-  (GoTo/URI) → P2 (tap-to-navigate).
+- Outline: PDF bookmarks tree → Slint list (PDF-04). Implemented (M6.5):
+  `reeda-pdf::outline::extract_outline` flattens the tree pre-order into
+  `{ title, page_index, depth }`; `PdfView.outline` exposes jumpable entries
+  in the snapshot; reader chrome shows an outline panel ("≡" toggle) with
+  depth indentation and tap-to-jump. Links inside pages (GoTo/URI) → P2
+  (tap-to-navigate).
 
 ## 3. Rasterization
 

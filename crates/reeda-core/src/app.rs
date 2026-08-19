@@ -70,6 +70,23 @@ pub struct PdfView {
     pub page_sizes: Vec<(f32, f32)>,
     /// Resolved absolute path of the PDF file (feeds the rasterizer).
     pub path: String,
+    /// Flattened document outline (bookmarks), pre-order with nesting depth;
+    /// every entry resolves to a jumpable page (PDF_SPEC §2.2).
+    pub outline: Vec<OutlineItemView>,
+}
+
+/// One flattened entry of a PDF document outline (PDF_SPEC §2.2).
+///
+/// Built from the PDF bookmarks tree in pre-order: parents before
+/// children, siblings in document order.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OutlineItemView {
+    /// Section title.
+    pub title: String,
+    /// Zero-based target page index (jump target).
+    pub page_index: u32,
+    /// Nesting depth (0 = top-level section).
+    pub depth: u32,
 }
 
 /// In-reader search state exposed to the UI.
@@ -180,6 +197,8 @@ struct PdfState {
     page_count: u32,
     /// Per-page `(width, height)` in PDF points (72 dpi).
     page_sizes: Vec<(f32, f32)>,
+    /// Flattened outline for the outline panel.
+    outline: Vec<OutlineItemView>,
 }
 
 impl Default for App {
@@ -714,6 +733,7 @@ impl App {
                 page_count: ps.page_count,
                 page_sizes: ps.page_sizes.clone(),
                 path: ps.path.display().to_string(),
+                outline: ps.outline.clone(),
             }),
         }
     }
@@ -841,10 +861,26 @@ impl App {
         let page_sizes: Vec<(f32, f32)> = (0..doc.page_count())
             .filter_map(|i| doc.page_size(i))
             .collect();
+        // Best-effort outline extraction; a failure only costs the panel.
+        let outline = reeda_pdf::outline::extract_outline(&path)
+            .map(|items| {
+                items
+                    .into_iter()
+                    .filter_map(|item| {
+                        item.page_index.map(|page_index| OutlineItemView {
+                            title: item.title,
+                            page_index,
+                            depth: item.depth,
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         self.pdf_state = Some(PdfState {
             path,
             page_count,
             page_sizes,
+            outline,
         });
         self.total_pages = page_count;
         self.current_page = saved_page.min(page_count.saturating_sub(1));
@@ -2909,6 +2945,96 @@ startxref
         assert!((h - 792.0).abs() < 1.0, "height ~792 pt, got {h}");
         assert_eq!(snap.total_pages, 1);
         assert_eq!(snap.current_page, 0);
+    }
+
+    /// Build a minimal PDF with a two-level outline (same shape as the
+    /// reeda-pdf outline tests): Chapter One → Section 1.1, then Chapter Two.
+    fn outline_pdf() -> Vec<u8> {
+        fn build_pdf(objects: &[(u32, &str)]) -> Vec<u8> {
+            let mut out = b"%PDF-1.4\n".to_vec();
+            let max = objects.iter().map(|(n, _)| *n).max().unwrap_or(0);
+            let mut offsets = vec![0usize; max as usize + 1];
+            for (num, content) in objects {
+                offsets[*num as usize] = out.len();
+                out.extend_from_slice(format!("{num} 0 obj\n{content}\nendobj\n").as_bytes());
+            }
+            let xref_offset = out.len();
+            out.extend_from_slice(format!("xref\n0 {}\n", max + 1).as_bytes());
+            out.extend_from_slice(b"0000000000 65535 f \n");
+            for off in offsets.iter().skip(1) {
+                out.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+            }
+            out.extend_from_slice(
+                format!(
+                    "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF",
+                    max + 1
+                )
+                .as_bytes(),
+            );
+            out
+        }
+        build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R /Outlines 6 0 R >>"),
+            (2, "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+            (3, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"),
+            (4, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"),
+            (6, "<< /Type /Outlines /First 7 0 R /Last 8 0 R /Count 2 >>"),
+            (
+                7,
+                "<< /Title (Chapter One) /Parent 6 0 R /Next 8 0 R /First 9 0 R /Last 9 0 R /Count 1 /Dest [3 0 R /Fit] >>",
+            ),
+            (
+                8,
+                "<< /Title (Chapter Two) /Parent 6 0 R /Prev 7 0 R /Dest [4 0 R /Fit] >>",
+            ),
+            (
+                9,
+                "<< /Title (Section 1.1) /Parent 7 0 R /Dest [3 0 R /Fit] >>",
+            ),
+        ])
+    }
+
+    #[test]
+    fn open_pdf_exposes_flattened_outline() {
+        let path = write_pdf_fixture("outline.pdf", &outline_pdf());
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        let events = app.dispatch(Command::OpenBook { book_id });
+        if let Some(Event::Error { message }) = events.first() {
+            if message.contains("Failed to open PDF") {
+                eprintln!("PDFium not available — skipping");
+                return;
+            }
+        }
+
+        let pdf = app.snapshot().pdf.expect("pdf view state present");
+        assert_eq!(
+            pdf.outline,
+            vec![
+                OutlineItemView {
+                    title: "Chapter One".into(),
+                    page_index: 0,
+                    depth: 0,
+                },
+                OutlineItemView {
+                    title: "Section 1.1".into(),
+                    page_index: 0,
+                    depth: 1,
+                },
+                OutlineItemView {
+                    title: "Chapter Two".into(),
+                    page_index: 1,
+                    depth: 0,
+                },
+            ]
+        );
     }
 
     #[test]

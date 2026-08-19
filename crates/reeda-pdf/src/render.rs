@@ -97,17 +97,17 @@ mod tests {
 
     const ONE_PAGE_PDF: &[u8] = crate::document::tests::ONE_PAGE_PDF;
 
-    fn write_temp(bytes: &[u8]) -> std::path::PathBuf {
+    fn write_temp(name: &str, bytes: &[u8]) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("reeda-pdf-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let path = dir.join(format!("render-{}.pdf", bytes.len()));
+        let path = dir.join(name);
         std::fs::write(&path, bytes).unwrap();
         path
     }
 
     #[test]
     fn renders_page_at_96_dpi_base_scale() {
-        let path = write_temp(ONE_PAGE_PDF);
+        let path = write_temp("render-96dpi.pdf", ONE_PAGE_PDF);
         let page = match render_page(&path, 0, 1.0, Theme::Normal) {
             Ok(page) => page,
             Err(PdfError::PdfiumUnavailable(_)) => {
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn caps_render_dimension_at_4096_px() {
-        let path = write_temp(ONE_PAGE_PDF);
+        let path = write_temp("render-cap.pdf", ONE_PAGE_PDF);
         let page = match render_page(&path, 0, 100.0, Theme::Normal) {
             Ok(page) => page,
             Err(PdfError::PdfiumUnavailable(_)) => {
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn night_theme_darkens_output() {
-        let path = write_temp(ONE_PAGE_PDF);
+        let path = write_temp("render-night.pdf", ONE_PAGE_PDF);
         let normal = match render_page(&path, 0, 1.0, Theme::Normal) {
             Ok(page) => page,
             Err(PdfError::PdfiumUnavailable(_)) => {
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn missing_page_returns_render_failed() {
-        let path = write_temp(ONE_PAGE_PDF);
+        let path = write_temp("render-missing.pdf", ONE_PAGE_PDF);
         match render_page(&path, 99, 1.0, Theme::Normal) {
             Err(PdfError::RenderFailed(_)) => {}
             Ok(_) => panic!("expected RenderFailed"),

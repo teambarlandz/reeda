@@ -18,6 +18,9 @@ pub mod cache;
 /// Render-time theme filters for page bitmaps (PDF_SPEC §3).
 pub mod theme;
 
+/// Document outline (bookmarks) extraction (PDF_SPEC §2.2).
+pub mod outline;
+
 /// Returns the current reeda-pdf crate version.
 pub fn crate_version() -> &'static str {
     env!("CARGO_PKG_VERSION")

@@ -4,7 +4,7 @@ export { Theme } from "./Theme.slint";
 import { Theme } from "./Theme.slint";
 import { BookInfo } from "./BookCard.slint";
 import { LibraryScreen } from "./LibraryScreen.slint";
-import { ReaderScreen, LineRun } from "./ReaderScreen.slint";
+import { ReaderScreen, LineRun, OutlineItem } from "./ReaderScreen.slint";
 import { NotesScreen, NotesEntry } from "./NotesScreen.slint";
 import { BookmarksScreen, BookmarkEntry } from "./BookmarksScreen.slint";
 import { SettingsScreen } from "./SettingsScreen.slint";
@@ -90,6 +90,7 @@ export component AppRoot inherits Window {
     in-out property < string > pdf-zoom-text: "";
     in-out property < length > pdf-scroll-offset: 0px;
     in-out property < length > pdf-scroll-target: 0px;
+    in-out property < [OutlineItem] > pdf-outline: [];
 
     // ── Reader callbacks ────────────────────────────────────────────
     callback next-page();
@@ -139,6 +140,7 @@ export component AppRoot inherits Window {
     callback pdf-zoom-by(float);
     callback pdf-toggle-zoom();
     callback pdf-jumped(string);
+    callback pdf-outline-jumped(int);
 
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
@@ -196,6 +198,7 @@ export component AppRoot inherits Window {
         pdf-zoom-text: root.pdf-zoom-text;
         pdf-scroll-offset: root.pdf-scroll-offset;
         pdf-scroll-target: root.pdf-scroll-target;
+        pdf-outline: root.pdf-outline;
 
         back-pressed => {
             root.show-reader = false;
@@ -260,6 +263,7 @@ export component AppRoot inherits Window {
         pdf-zoom-by(d) => { root.pdf-zoom-by(d); }
         pdf-toggle-zoom => { root.pdf-toggle-zoom(); }
         pdf-jumped(p) => { root.pdf-jumped(p); }
+        pdf-outline-jumped(p) => { root.pdf-outline-jumped(p); }
     }
 
     if root.show-notes : NotesScreen {

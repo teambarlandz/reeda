@@ -12,6 +12,12 @@ export struct LineRun {
     annotation-id: string,
 }
 
+export struct OutlineItem {
+    title: string,
+    page: int,
+    depth: int,
+}
+
 export component ReaderScreen inherits Rectangle {
     callback back-pressed();
     callback toggle-chrome();
@@ -42,6 +48,7 @@ export component ReaderScreen inherits Rectangle {
     callback pdf-zoom-by(float);
     callback pdf-toggle-zoom();
     callback pdf-jumped(string);
+    callback pdf-outline-jumped(int);
 
     in property < bool > pdf-mode: false;
     in property < int > pdf-page-count: 0;
@@ -53,6 +60,10 @@ export component ReaderScreen inherits Rectangle {
     in property < string > pdf-zoom-text: "";
     in-out property < length > pdf-scroll-offset: 0px;
     in property < length > pdf-scroll-target: 0px;
+    in property < [OutlineItem] > pdf-outline: [];
+
+    // Outline panel visibility (M6.5).
+    property < bool > outline-open: false;
 
     in property < bool > chrome-visible: false;
     in property < string > book-title: "";
@@ -123,6 +134,23 @@ export component ReaderScreen inherits Rectangle {
 
                     TouchArea {
                         clicked => { root.search-toggled(); }
+                    }
+                }
+
+                if root.pdf-mode : Rectangle {
+                    width: 40px;
+                    height: 40px;
+
+                    Text {
+                        text: "≡";
+                        font-size: 18pt;
+                        color: root.outline-open ? Theme.current.accent : Theme.current.foreground;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    TouchArea {
+                        clicked => { root.outline-open = !root.outline-open; }
                     }
                 }
 
@@ -734,4 +762,74 @@ export component ReaderScreen inherits Rectangle {
             }
         }
     }
-}
+
+    // Outline panel (M6.5): flattened PDF bookmarks, tap to jump.
+    if root.pdf-mode && root.outline-open && root.chrome-visible : Rectangle {
+        x: root.width - min(320px, root.width * 0.85);
+        y: 0px;
+        width: min(320px, root.width * 0.85);
+        height: root.height;
+        background: Theme.current.surface;
+        border-width: 1px;
+        border-color: Theme.current.surface_variant;
+
+        // Tap anywhere outside an item closes the panel.
+        TouchArea {
+            clicked => { root.outline-open = false; }
+        }
+
+        Text {
+            x: 12px;
+            y: 8px;
+            text: "Outline";
+            font-size: 14pt;
+            font-weight: 600;
+            color: Theme.current.foreground;
+        }
+
+        if root.pdf-outline.length == 0 : Text {
+            x: 12px;
+            y: 40px;
+            text: "No outline in this document";
+            font-size: 11pt;
+            color: Theme.current.foreground;
+            opacity: 0.7;
+        }
+
+            outline-list := ScrollView {
+                x: 0px;
+                y: 44px;
+                width: parent.width;
+                height: parent.height - 44px;
+
+                VerticalLayout {
+                    spacing: 2px;
+
+                    for item in root.pdf-outline : Rectangle {
+                        width: outline-list.visible-width;
+                        height: 36px;
+
+                        Rectangle {
+                            x: item.depth * 14px;
+                            width: outline-list.visible-width - item.depth * 14px;
+                            height: parent.height;
+
+                            Text {
+                                text: item.title;
+                                font-size: 11pt;
+                                color: Theme.current.foreground;
+                                vertical-alignment: center;
+                            }
+
+                            TouchArea {
+                                clicked => {
+                                    root.outline-open = false;
+                                    root.pdf-outline-jumped(item.page);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }

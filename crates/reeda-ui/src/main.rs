@@ -789,9 +789,25 @@ fn main() {
         move |page: slint::SharedString| {
             let app = weak.unwrap();
             let mut core = core_cell.borrow_mut();
+            let Ok(num) = page.trim().parse::<u32>() else {
+                return;
+            };
             PDF_UI.with(|cell| {
                 let mut pdf = cell.borrow_mut();
-                pdf_jump(&app, &mut pdf, &mut core, page.as_str());
+                pdf_jump(&app, &mut pdf, &mut core, num);
+            });
+        }
+    });
+
+    app.on_pdf_outline_jumped({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |page: i32| {
+            let app = weak.unwrap();
+            let mut core = core_cell.borrow_mut();
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_jump(&app, &mut pdf, &mut core, page as u32);
             });
         }
     });
@@ -812,6 +828,17 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         Some(view) => {
             app.set_pdf_mode(true);
             app.set_pdf_page_count(view.page_count as i32);
+            // Outline panel model (M6.5): 1-based pages match the jump dialog.
+            let outline_model: Vec<OutlineItem> = view
+                .outline
+                .iter()
+                .map(|item| OutlineItem {
+                    title: slint::SharedString::from(&item.title),
+                    page: (item.page_index + 1) as i32,
+                    depth: item.depth as i32,
+                })
+                .collect();
+            app.set_pdf_outline(slint::ModelRc::from(outline_model.as_slice()));
             PDF_UI.with(|cell| {
                 let mut pdf = cell.borrow_mut();
                 pdf_open(app, view, &mut pdf);
@@ -820,6 +847,7 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
         None => {
             app.set_pdf_mode(false);
             app.set_pdf_page_count(0);
+            app.set_pdf_outline(slint::ModelRc::from(Vec::<OutlineItem>::new().as_slice()));
             PDF_UI.with(|cell| {
                 let mut pdf = cell.borrow_mut();
                 pdf_close(app, &mut pdf);
@@ -1194,15 +1222,12 @@ fn pdf_close(ui: &AppRoot, state: &mut PdfUiState) {
     ui.set_pdf_zoom_text(slint::SharedString::from(""));
 }
 
-/// Jump dialog handler: page number (1-based) → center that page.
-fn pdf_jump(ui: &AppRoot, state: &mut PdfUiState, core: &mut reeda_core::App, page: &str) {
+/// Jump to a page (1-based number) and center it in the viewport.
+fn pdf_jump(ui: &AppRoot, state: &mut PdfUiState, core: &mut reeda_core::App, page: u32) {
     if state.path.is_empty() {
         return;
     }
-    let Ok(num) = page.trim().parse::<u32>() else {
-        return;
-    };
-    let index = num
+    let index = page
         .saturating_sub(1)
         .min(state.page_count.saturating_sub(1));
     core.dispatch(reeda_core::Command::PdfPage { page_index: index });
