@@ -226,7 +226,7 @@ on emulator/device as a follow-up.
     from `bblanchon/pdfium-binaries` (pinned version, sha256 verify)
   - Tests: open single-page fixture PDF (const byte literal), verify
     page_count == 1, page_size ≈ 612×792 (US Letter)
-- [ ] **M6.2** reeda-pdf — Page rasterization + LRU cache:
+- [x] **M6.2** reeda-pdf — Page rasterization + LRU cache:
   - `src/render.rs`: `PdfRenderer` → `render_page(page, scale, theme)
     -> Vec<u8>` (RGBA); scale = device_pixel_ratio × zoom × fit_factor;
     max 4096 px/axis cap

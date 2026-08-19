@@ -2,12 +2,21 @@
 //!
 //! Modules (docs/PDF_SPEC.md): document model (`document`, M6.1),
 //! page rasterization with LRU cache (`render` + `cache`, M6.2),
-//! outline extraction and theme filters (M6.5).
+//! theme filters (`theme`, M6.2), outline extraction (M6.5).
 
 #![deny(missing_docs)]
 
 /// PDF document model: open, page count, page sizes (PDF_SPEC §2).
 pub mod document;
+
+/// Page rasterization to RGBA bitmaps (PDF_SPEC §3).
+pub mod render;
+
+/// LRU raster cache keyed by `(page, scale_bucket, theme)` (PDF_SPEC §5).
+pub mod cache;
+
+/// Render-time theme filters for page bitmaps (PDF_SPEC §3).
+pub mod theme;
 
 /// Returns the current reeda-pdf crate version.
 pub fn crate_version() -> &'static str {

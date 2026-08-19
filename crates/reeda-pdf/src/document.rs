@@ -17,6 +17,9 @@ pub enum PdfError {
     /// PDFium loaded but the file could not be opened (corrupt, missing,
     /// encrypted with password, etc.).
     OpenFailed(String),
+    /// The file opened but a page could not be rasterized (out-of-range
+    /// page index, renderer error, etc.).
+    RenderFailed(String),
 }
 
 impl std::fmt::Display for PdfError {
@@ -24,6 +27,7 @@ impl std::fmt::Display for PdfError {
         match self {
             Self::PdfiumUnavailable(msg) => write!(f, "PDFium unavailable: {msg}"),
             Self::OpenFailed(msg) => write!(f, "PDF open failed: {msg}"),
+            Self::RenderFailed(msg) => write!(f, "PDF render failed: {msg}"),
         }
     }
 }
@@ -80,8 +84,7 @@ fn init_pdfium() -> Result<Pdfium, PdfError> {
 ///
 /// Stores page count and per-page sizes (in PDF points, 1 pt = 1/72 in).
 /// The underlying PDFium document handle is dropped after extraction; for
-/// rendering, use [`crate::render::PdfRenderer`] which keeps the handle
-/// alive.
+/// rendering, use [`crate::render::render_page`].
 #[derive(Debug, Clone)]
 pub struct PdfDocument {
     /// Filesystem path to the PDF.
@@ -135,13 +138,13 @@ impl PdfDocument {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::io::Write;
 
     /// Minimal valid single-page PDF (US Letter, 612×792 pt).
     /// Byte offsets in the xref table have been verified.
-    const ONE_PAGE_PDF: &[u8] = b"%PDF-1.4
+    pub(crate) const ONE_PAGE_PDF: &[u8] = b"%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
 endobj
@@ -164,7 +167,7 @@ startxref
 %%EOF";
 
     /// Minimal valid two-page PDF (US Letter + A4 pages).
-    const TWO_PAGE_PDF: &[u8] = b"%PDF-1.4
+    pub(crate) const TWO_PAGE_PDF: &[u8] = b"%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
 endobj
@@ -244,6 +247,7 @@ startxref
                 eprintln!("PDFium not available — cannot test open failure path");
             }
             Err(PdfError::OpenFailed(_)) => { /* expected */ }
+            Err(PdfError::RenderFailed(e)) => panic!("unexpected render failure: {e}"),
             Ok(_) => panic!("should have failed"),
         }
     }
@@ -256,6 +260,7 @@ startxref
                 eprintln!("PDFium not available — skipping");
             }
             Err(PdfError::OpenFailed(_)) => { /* expected */ }
+            Err(PdfError::RenderFailed(e)) => panic!("unexpected render failure: {e}"),
             Ok(_) => panic!("should have failed"),
         }
     }
