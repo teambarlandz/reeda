@@ -8,3 +8,7 @@ repository.workspace = true
 description = "Reeda PDF engine: PDFium rasterization, outline, page cache (docs/PDF_SPEC.md)."
 
 [dependencies]
+pdfium-render = { version = "0.9", default-features = false, features = ["thread_safe", "pdfium_latest"] }
+
+[dev-dependencies]
+tempfile = "3"

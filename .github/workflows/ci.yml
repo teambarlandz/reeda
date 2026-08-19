@@ -40,6 +40,20 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
 
+  test-pdf:
+    name: PDF tests (real PDFium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch PDFium (pinned, sha256-verified)
+        run: pwsh scripts/fetch_pdfium.ps1
+      - name: Run PDF tests against real PDFium
+        run: cargo test -p reeda-pdf
+        env:
+          PDFIUM_LIBRARY_PATH: third_party/pdfium/linux-x64/libpdfium.so
+
   doc:
     name: Docs
     runs-on: ubuntu-latest

@@ -1,12 +1,13 @@
 //! `reeda-pdf` — the PDF engine of Reeda (PDFium via `pdfium-render`).
 //!
-//! Planned modules (docs/PDF_SPEC.md): document open/count, page
-//! rasterization with LRU cache, outline extraction, theme filters.
-//!
-//! Current state: skeleton. `pdfium-render` and the libpdfium binary
-//! strategy (docs/PDF_SPEC.md §7) are wired in M6.
+//! Modules (docs/PDF_SPEC.md): document model (`document`, M6.1),
+//! page rasterization with LRU cache (`render` + `cache`, M6.2),
+//! outline extraction and theme filters (M6.5).
 
 #![deny(missing_docs)]
+
+/// PDF document model: open, page count, page sizes (PDF_SPEC §2).
+pub mod document;
 
 /// Returns the current reeda-pdf crate version.
 pub fn crate_version() -> &'static str {

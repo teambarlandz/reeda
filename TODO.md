@@ -212,5 +212,52 @@ focus) verified on emulator/device as a follow-up.
 
 **Deferred (spec P2):** PDF narration (TTS-07), locale-aware abbreviation lists,
 skip-back/forward −15 s/+15 s within chunk, per-book voice settings.
-## M6 — PDF support (3 weeks) — _not started_
+## M6 — PDF support (3 weeks) — _in progress_
+
+**Exit criterion:** PDF renders fast, zooms smoothly, jumps correctly.
+Desktop + unit coverage green locally; device-dependent items verified
+on emulator/device as a follow-up.
+
+- [x] **M6.1** reeda-pdf — PDFium integration + document model:
+  - `Cargo.toml`: add `pdfium-render` (0.9, `thread_safe` feature)
+  - `src/document.rs`: `PdfDocument { path, page_count, page_sizes }`,
+    `open(path)`, `page_size(i) -> (f32, f32)` (points, 72 dpi)
+  - `scripts/fetch_pdfium.ps1`: download prebuilt `pdfium-win-x64.tgz`
+    from `bblanchon/pdfium-binaries` (pinned version, sha256 verify)
+  - Tests: open single-page fixture PDF (const byte literal), verify
+    page_count == 1, page_size ≈ 612×792 (US Letter)
+- [ ] **M6.2** reeda-pdf — Page rasterization + LRU cache:
+  - `src/render.rs`: `PdfRenderer` → `render_page(page, scale, theme)
+    -> Vec<u8>` (RGBA); scale = device_pixel_ratio × zoom × fit_factor;
+    max 4096 px/axis cap
+  - `src/cache.rs`: LRU keyed `(page, scale_bucket, theme)`, budget
+    ≤ 128 MB; buckets: fit-width, 100%, 150%, 200%, 300%, 400%, 500%
+  - Theme filters: night (luminance-preserving invert), sepia (warm
+    curve) applied to RGBA; re-render on theme/zoom change
+  - Tests: render page, verify pixel count, cache hit/miss, eviction
+- [ ] **M6.3** reeda-core — PDF import + open:
+  - `Command::ImportPdf { path }` / `Command::OpenPdf { book_id }` /
+    `Command::PdfPage { page_index }`
+  - PDF books stored in BookStore with metadata (title, page_count);
+    PdfDocument opened lazily on OpenPdf
+  - Snapshot: `PdfState { current_page, page_count, page_sizes }`
+  - Tests: import PDF, open, navigate pages
+- [ ] **M6.4** reeda-ui — Reader PDF mode:
+  - ReaderScreen.slint: PDF canvas (image per page), scroll/zoom,
+    page indicator (auto-hide), jump-to-page dialog
+  - Double-tap zoom toggle (fit-width ↔ 100%); pinch zoom 0.25×–5×
+  - main.rs: PDF commands, page navigation, zoom state from snapshot
+  - Tests: UI compiles; manual smoke
+- [ ] **M6.5** reeda-pdf — Outline + night filter:
+  - Outline extraction: PDF bookmarks tree → `Vec<OutlineItem>`
+  - Outline dialog/screen in UI (reader chrome)
+  - Night/sepia theme filter (render-time, re-render on theme change)
+  - Tests: outline extraction, theme filter output
+- [ ] **M6.6** Tests + docs + close:
+  - Full workspace tests; update PDF_SPEC status, CHANGELOG.md, README.md
+    status; TODO checkboxes; commit/push
+
+**Deferred (spec P2):** selection/copy, PDF search, password-protected
+PDFs, text extraction for TTS (TTS-07).
+
 ## M7 — Hardening & ship (3 weeks) — _not started_
