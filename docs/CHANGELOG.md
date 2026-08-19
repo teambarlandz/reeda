@@ -99,6 +99,39 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
     release (debug runs a scaled-down corpus with generous smoke bounds).
   - 155 tests across workspace (83 reeda-core, 54 reeda-epub, 16 reeda-search,
     2 integration/perf).
+- **M5 Read aloud (TTS)**:
+  - `reeda-tts` chunker (`chunk.rs`): sentence-boundary detection with
+    abbreviation guard list, 4000-char chunk limit, text cleaning (soft
+    hyphens, nbsp, control chars), skip of images/rules/repeated chapter
+    titles, chunk→CFI mapping via `GlobalRange`.
+  - `reeda-tts` engine (`engine.rs`): `TtsHost` trait (Any-supertrait, e.g.
+    `FakeTtsHost` for desktop/tests) + `NarrationEngine` state machine
+    (Idle/Loading/Speaking/Paused/Error), queue depth 2 with prefetch,
+    monotonic utterance ids, 3-error retry policy, rate 0.5–2.5 / pitch
+    0.5–1.5 clamping.
+  - Core narration wiring: `StartNarration`/`PauseNarration`/`ResumeNarration`/
+    `StopNarration`/`NarrationSkip { delta }`/`SetTtsSpeed`/`SetTtsPitch`/
+    `PollNarration` commands; word highlight events + transient highlight,
+    auto page turn on chunk CFI crossing the page end (TTS-05), chapter
+    auto-advance, `NarrationFinished` on last chapter; narration cleared on
+    stop/close-book; `TtsHost` injectable via `App::set_tts_host`.
+  - Reader TTS bar (ReaderScreen.slint): play/pause, stop, chapter skip
+    fwd/back, speed chip cycling 0.5–2.5; 300 ms narration poll timer drives
+    word highlights and bar state from the snapshot.
+  - Android JNI bridge (feature `platform-android`): `AndroidTtsHost`
+    (jni + ndk-context) over `android/src/io/reeda/app/TtsShim.java`
+    (TextToSpeech init/speak/stop/rate/pitch + `UtteranceProgressListener`
+    onStart/onRangeStart/onDone/onError marshalled via the exported
+    `Java_io_reeda_app_TtsShim_onEvent` symbol); wired in at startup on
+    Android; manifest already declares foreground-service/wake-lock
+    permissions. CI: `build-apk.yml` builds the APK with
+    `--no-default-features --features platform-android` and adds a
+    aarch64-linux-android compile check for the bridge.
+  - Device-dependent items (media notification with lock-screen controls,
+    audio focus, wake-lock, ±15 s within chunk) deferred to emulator/device
+    verification in M7 (see docs/TTS_SPEC.md §2).
+  - 159 tests across workspace (88 reeda-core, 54 reeda-epub, 16
+    reeda-search, 18 reeda-tts, 1 perf fixture).
 
 ### Changed
 

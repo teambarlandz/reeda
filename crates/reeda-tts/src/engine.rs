@@ -1,9 +1,9 @@
 //! Narration engine (docs/TTS_SPEC.md §4–§5): queue + state machine over
-//! [`crate::chunk::NarrationChunk`]s, driven by a [`TtsHost`] platform.
+//! [`crate::chunk::NarrationChunk`]s, driven by a `TtsHost` platform.
 //!
 //! The engine is host-agnostic: the Android TextToSpeech bridge and the
-//! desktop fake both implement [`TtsHost`] and deliver callbacks through
-//! [`HostEvent`]s consumed via [`TtsHost::poll`].
+//! desktop fake both implement `TtsHost` and deliver callbacks through
+//! `HostEvent`s consumed via `TtsHost::poll`.
 
 use std::collections::VecDeque;
 

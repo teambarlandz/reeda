@@ -9,10 +9,13 @@ stack (Slint UI on the Android platform).
 
 ## Status
 
-> 🚧 **Pre-alpha — M4 full-text search complete.** Search your library from the
-> Library screen (debounced, open-at-match) and within a book from the reader
-> chrome (prev/next with wrap) — Tantivy-backed BM25 ranking with English
-> analysis. M5 (PDF reader) is next.
+> 🚧 **Pre-alpha — M5 read-aloud complete.** Read any EPUB chapter aloud with
+> a reader TTS bar (play/pause, stop, chapter skip, speed chip) and word-level
+> highlight tracking the speech; narration auto-turns pages and advances
+> chapters. The Android TextToSpeech bridge (`AndroidTtsHost` + `TtsShim.java`)
+> is in place and compile-checked in CI; notification controls and audio
+> focus verify on device in M7. Full-text search (M4) ships in the Library
+> and reader chrome. M6 (PDF reader) is next.
 
 | Area | State |
 |------|-------|
@@ -24,6 +27,7 @@ stack (Slint UI on the Android platform).
 | Library & metadata (M2) | Done |
 | Highlighting & notes (M3) | Done |
 | Full-text search (M4) | Done |
+| Read aloud / TTS (M5) | Done (device verification in M7) |
 | Play Store release | Not started |
 
 ## Feature map (Apple Books parity)

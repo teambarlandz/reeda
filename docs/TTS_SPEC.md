@@ -1,8 +1,17 @@
 # Read-Aloud (TTS) Specification — Reeda
 
-> Status: draft · Version: 0.2 · Owner: @teambarlandz · Last updated: 2026-08-17
+> Status: draft · Version: 0.2 · Owner: @teambarlandz · Last updated: 2026-08-18
 > Implementation: `reeda-tts` (Android `TextToSpeech` via JNI — ADR-008).
 > Feature requirements: PRD §3.6 (TTS-01…TTS-08).
+>
+> **Implementation status (M5, 2026-08-18):** chunker (spec §3), narration
+> engine + `TtsHost` trait (§4–§5), core wiring incl. word highlight, auto
+> page turn and chapter advance (§5), reader TTS bar (§6), and the JNI
+> Android bridge `AndroidTtsHost` + `TtsShim.java` (§2) are implemented
+> (159 tests). Device-dependent items — foreground-service media
+> notification with lock-screen controls, audio focus (TTS-08), wake-lock,
+> ±15 s within chunk, `ACTION_TTS_SETTINGS` voice screen — are pending
+> emulator/device verification (M7 hardening).
 
 ## 1. Scope
 
@@ -11,7 +20,7 @@ PDF narration (TTS-07) is P2 (needs `reeda-pdf` text extraction, PDF_SPEC §6).
 
 ## 2. Platform integration (Android)
 
-- Java shim (≤ ~100 lines, `android/`): wraps
+- Java shim (`android/src/io/reeda/app/TtsShim.java`, ≤ ~100 lines): wraps
   `android.speech.tts.TextToSpeech` (initialization, `speak`,
   `stop`, `pause`?→ handled via queueMode + stop; `setSpeechRate`,
   `setPitch`, voice via `Voice` selection or system settings intent),
@@ -19,19 +28,21 @@ PDF narration (TTS-07) is P2 (needs `reeda-pdf` text extraction, PDF_SPEC §6).
   `UtteranceProgressListener` (`onStart`, `onDone`, `onError`,
   `onRangeStart(start, end, frame)`).
 - Rust side (`android_bridge.rs`, `jni` crate): JNIEnv obtained via
-  `android-activity`'s `vm`/`activity` handles; all calls marshalled off the
-  UI thread (binder thread + channel).
-- **Foreground service** (`foregroundServiceType="mediaPlayback"`):
-  created when narration starts, with a media-style notification
-  (play/pause/stop/skip-back/skip-forward, speed stepper) whose actions
-  dispatch back to the engine via pending intents → JNI. Stopped when
-  narration ends.
+  `ndk-context`'s `vm`/`context` handles; every call goes through
+  `attach_current_thread` so it works off the UI thread; binder-thread
+  callbacks land in a process-wide queue drained by `TtsHost::poll`.
+- **Foreground service** (`foregroundServiceType="mediaPlayback"`,
+  declared in the manifest): created when narration starts, with a
+  media-style notification (play/pause/stop/skip-back/skip-forward, speed
+  stepper) whose actions dispatch back to the engine via pending intents →
+  JNI. Stopped when narration ends. — **Pending device verification (M7).**
 - **Audio focus** (TTS-08): `requestAudioFocus(AUDIOFOCUS_GAIN)`; on
   `AUDIOFOCUS_LOSS` → pause; on `TRANSIENT` → pause+resume; on
-  `DUCK` → lower volume via `AudioAttributes`.
+  `DUCK` → lower volume via `AudioAttributes`. — **Pending device
+  verification (M7).**
 - **Wake lock**: partial wake-lock while narrating (TTS-04) only if user
   setting enabled; screen-on is default off (screen can sleep; service
-  continues).
+  continues). — **Pending device verification (M7).**
 
 ## 3. Chunking & text preparation
 

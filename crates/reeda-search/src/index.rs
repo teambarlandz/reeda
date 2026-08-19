@@ -91,7 +91,7 @@ pub struct SearchHit {
 /// Result of a search query: hits + total count (before the cap).
 #[derive(Debug, Clone, Default)]
 pub struct SearchResult {
-    /// Ranked hits, capped at [`DEFAULT_QUERY_LIMIT`].
+    /// Ranked hits, capped at the internal `DEFAULT_QUERY_LIMIT` (200).
     pub hits: Vec<SearchHit>,
     /// Total number of matching documents (uncapped).
     pub total: usize,

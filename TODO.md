@@ -152,14 +152,14 @@ query p95 well under 1 s.
 **Deferred (spec P2):** per-language stemming/analyzers (en-only v1), fuzzy/typo
 tolerance, recent-searches list, CJK-specific prefix/substring, in-book search
 scope toggle UI (library-wide first).
-## M5 — Read aloud / TTS (3 weeks) — _in progress_
+## M5 — Read aloud / TTS (3 weeks) — _done_
 
 **Exit criterion:** read a chapter aloud, lock the phone, control from
 notification, word highlight tracks speech. — Desktop + unit coverage green
 locally; device-dependent items (notification controls, lock screen, audio
 focus) verified on emulator/device as a follow-up.
 
-- [ ] **M5.1** reeda-tts — Chunker (`chunk.rs`):
+- [x] **M5.1** reeda-tts — Chunker (`chunk.rs`):
   - Sentence boundary detection (`. ! ? …` + closing quotes) with abbreviation
     guard list (Mr., Dr., …); chunk max 4000 chars, boundary forced at sentence,
     paragraphs split only when over limit
@@ -167,13 +167,13 @@ focus) verified on emulator/device as a follow-up.
     markers (document-model filtering) — plain text from DocumentModel
   - Chunk → CFI mapping via GlobalRange (block_index + char offsets, spec §3)
   - Tests: boundaries + abbreviation guard, limits, cleaning, CFI mapping
-- [ ] **M5.2** reeda-tts — Engine trait + narration state machine (`engine.rs`):
+- [x] **M5.2** reeda-tts — Engine trait + narration state machine (`engine.rs`):
   - `TtsHost` trait (speak/stop/pause/resume/set_rate/set_pitch; callbacks
     on_start/on_done/on_error/on_range_start) + `FakeTtsHost` (desktop/tests)
   - NarrationEngine: Idle/Loading/Speaking/Paused/Error, queue depth 2,
     monotonic utterance ids, retry policy (3 consecutive errors → Paused+Error)
   - Tests: all transitions, queue prefetch, callbacks, retry policy
-- [ ] **M5.3** reeda-core — Narration wiring (`narration.rs` in App):
+- [x] **M5.3** reeda-core — Narration wiring (`narration.rs` in App):
   - StartNarration builds chunks from current chapter (ParsedDocRegistry),
     auto-advance to next chapter; `NarrationSkip { delta }` chapter fwd/back
   - WordHighlight → transient_highlight (cyan) + WordHighlight event; auto page
@@ -189,7 +189,7 @@ focus) verified on emulator/device as a follow-up.
   - main.rs wiring: commands → dispatch, bar state from snapshot; word highlight
     via transient_highlight (already renders)
   - Desktop smoke: fake host drives highlight + page turns
-- [ ] **M5.5** Android TTS bridge (feature-gated `platform-android`):
+- [x] **M5.5** Android TTS bridge (feature-gated `platform-android`):
   - `android_bridge.rs` (jni crate): TextToSpeech init, speak/stop/setSpeechRate/
     setPitch, UtteranceProgressListener (onStart/onDone/onError/onRangeStart)
     marshalled to engine; Java shim `android/TtsShim.java`; foreground-service
@@ -206,7 +206,7 @@ focus) verified on emulator/device as a follow-up.
     `--no-default-features --features platform-android`, add tts compile-check
     job; (7) verify `cargo check -p reeda-tts --no-default-features --features
     platform-android` on host + full test suite, commit/push
-- [ ] **M5.6** Tests + docs + close:
+- [x] **M5.6** Tests + docs + close:
   - Full workspace tests; update TTS_SPEC status, CHANGELOG.md, README.md
     status; TODO checkboxes; commit/push
 
