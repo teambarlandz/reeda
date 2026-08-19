@@ -164,6 +164,12 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 - `pdf_jump` in main.rs now takes a 1-based `u32` page (dialog path
   parses the text, outline path passes the page directly).
+- **M7 desktop packaging:** PDFium is bundled with the app — no runtime
+  download. New `scripts/package.ps1` builds the release binary and copies
+  `pdfium.dll` next to `reeda-ui.exe` into `dist/reeda-<version>-win-x64.zip`;
+  Windows DLL search order loads it via `bind_to_system_library` with zero
+  configuration (verified: reeda-pdf tests green without
+  `PDFIUM_LIBRARY_PATH`; packaged exe smoke-tested).
 
 ### Fixed
 

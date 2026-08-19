@@ -54,6 +54,12 @@ profile = "minimal"
 # Host (desktop dev, stub platform) — fastest inner loop
 cargo run -p reeda-ui --features platform-desktop
 
+# PDFium: fetch the prebuilt DLL, then run (bundling; see scripts/package.ps1)
+powershell -ExecutionPolicy Bypass -File scripts/fetch_pdfium.ps1
+# Dev runs pick the DLL up via PDFIUM_LIBRARY_PATH or system search path
+# (see docs/PDF_SPEC.md §7); `scripts/package.ps1` builds a portable
+# release zip with pdfium.dll bundled next to reeda-ui.exe.
+
 # Android debug APK (arm64)
 cargo apk run -p reeda-ui                    # installs to device/emulator
 

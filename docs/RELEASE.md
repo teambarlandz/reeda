@@ -23,7 +23,11 @@
 3. Changelog updated; TODO.md statuses refreshed.
 4. Tag `vX.Y.Z` (annotated) → `release.yml` builds + signs APKs
    (BUILD_CI.md §4) → GitHub Release draft with assets.
-5. Upload to Play (below) → monitor first 48 h (crashes via Play
+5. **Desktop artifact (M7):** `scripts/package.ps1` produces
+   `dist/reeda-<version>-win-x64.zip` — release exe + bundled `pdfium.dll`
+   (no runtime download; see PDF_SPEC.md §7). Attach to the GitHub Release
+   for the desktop preview alongside the APKs.
+6. Upload to Play (below) → monitor first 48 h (crashes via Play
    Console ANR/CR — no third-party crash tool in v1.0).
 
 ## 3. Google Play publishing (v1.0+, via Play Console web upload)

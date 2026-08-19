@@ -265,4 +265,19 @@ on emulator/device as a follow-up.
 **Deferred (spec P2):** selection/copy, PDF search, password-protected
 PDFs, text extraction for TTS (TTS-07).
 
-## M7 — Hardening & ship (3 weeks) — _not started_
+## M7 — Hardening & ship (3 weeks)
+
+- [x] **M7a** Desktop packaging & PDFium bundling:
+  - Decision (PDF_SPEC §7): bundle `pdfium.dll` next to the exe — no
+    runtime download; works via system library search (exe dir first)
+  - `scripts/package.ps1`: release build + DLL bundle + portable zip
+    (`dist/reeda-<version>-win-x64.zip`); `/dist` gitignored
+  - Verified: reeda-pdf tests green without `PDFIUM_LIBRARY_PATH` (DLL
+    beside test exe), packaged release exe smoke
+  - Docs: PDF_SPEC §7, PLATFORM.md, RELEASE.md, CHANGELOG updated
+- [ ] **M7b** Accessibility pass (TalkBack labels, selection a11y, large fonts)
+- [ ] **M7c** Localization framework + English/Nigerian-English first, plurals, RTL-ready
+- [ ] **M7d** Performance pass vs budgets (PERFORMANCE.md)
+- [ ] **M7e** Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
+- [ ] **M7f** Play Store assets: icon, screenshots, store listing, privacy policy
+- [ ] **M7g** Internal test → closed beta → open beta → production

@@ -2,7 +2,7 @@
 #
 # Usage:   powershell -ExecutionPolicy Bypass -File scripts/fetch_pdfium.ps1
 # Output:  third_party/pdfium/<platform>/pdfium.dll|libpdfium.so
-#          (Windows: pdfium.dll next to the app / on the search path)
+#          (Windows: bundled next to the app via scripts/package.ps1)
 #
 # The pinned PDFium release is bblanchon/pdfium-binaries (tag
 # `chromium/<sha>`). Re-pin deliberately: bump the tag AND update the

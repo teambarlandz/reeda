@@ -73,6 +73,13 @@
     (Linux/macOS) with hash verification.
   - Cargo feature `static` links; default = dynamic load via
     `Pdfium::bind_to_library`.
+- **Desktop packaging (M7 decision):** bundle the DLL with the app — no
+  runtime download. `scripts/package.ps1` builds the release binary and
+  copies `pdfium.dll` next to `reeda-ui.exe` into a portable zip. Windows
+  DLL search order finds the application directory first, so
+  `Pdfium::bind_to_system_library` (the fallback in `reeda-pdf::document`)
+  loads it with zero configuration; verified by the reeda-pdf test suite
+  run without `PDFIUM_LIBRARY_PATH` and by the packaged-exe smoke test.
 - Android: copy per-ABI `.so` into `android/src/main/jniLibs/<abi>/` during
   build (cargo-apk `additional-libs` config).
 
