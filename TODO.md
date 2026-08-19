@@ -293,7 +293,16 @@ PDFs, text extraction for TTS (TTS-07).
     `Plural-Forms` headers; RTL-ready via Slint mirroring
   - Supersedes ADR-011 (custom JSON catalogs); LOCALIZATION.md rewritten,
     CHANGELOG updated; desktop smoke green
-- [ ] **M7d** Performance pass vs budgets (PERFORMANCE.md)
+- [x] **M7d** Performance pass vs budgets (PERFORMANCE.md):
+  - PDF raster path wired through the 128 MB LRU cache (PDF_SPEC §5):
+    visible window served from cache, out-of-window pages dropped from the
+    image model (bounded memory), fit-width rasters invalidated on resize
+  - `scripts/bench_desktop.ps1` runs the release-gated benches (PDF first
+    raster 19.6 ms vs <250 ms budget; cached blit 0.1 µs vs <8 ms; EPUB
+    pagination 52.8/130.7 µs avg/long chapter; search 3.4 s vs <10 s/100
+    books); debug smoke thresholds keep `cargo test` fast
+  - PERFORMANCE.md status → verified (desktop); device budgets (Pixel 6a,
+    `bench_android.ps1`) measured in M7g
 - [ ] **M7e** Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
 - [ ] **M7f** Play Store assets: icon, screenshots, store listing, privacy policy
 - [ ] **M7g** Internal test → closed beta → open beta → production

@@ -8,6 +8,17 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 ### Added
 
+- **M7d performance pass:** the PDF raster path now uses the 128 MB LRU
+  `RasterCache` (PDF_SPEC §5) — visible-window pages are served from the
+  cache and pages outside the window are dropped from the image model, so
+  scrolling re-blits instead of re-rasterizing and memory stays within the
+  byte budget; fit-to-width rasters invalidate on a material viewport
+  resize. New release-gated benchmark tests (`scripts/bench_desktop.ps1`):
+  PDF first-raster p95 (measured 19.6 ms vs < 250 ms budget) and cached
+  blit p95 (0.1 µs vs < 8 ms) in `reeda-pdf/tests/perf_bench.rs`; EPUB
+  pagination p95 for avg/long chapters (52.8 µs / 130.7 µs) in
+  `reeda-epub/tests/perf_bench.rs`; search index/query gate (3.4 s) in
+  `reeda-search/tests/perf_fixture.rs`. 214 tests green, clippy clean.
 - **M7c localization framework:** all 122 user-facing strings across the 9
   Slint screens are wrapped in Slint's native `@tr("…")` (msgid = English
   text) and bundled via gettext catalogs

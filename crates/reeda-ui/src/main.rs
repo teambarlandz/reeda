@@ -1248,7 +1248,18 @@ fn pdf_render_visible(ui: &AppRoot, state: &mut PdfUiState) {
         return;
     };
     let base_width = w0_pt * reeda_pdf::render::PIXELS_PER_POINT;
-    state.fit_factor = (state.visible_width / base_width).max(0.05);
+    let new_fit = (state.visible_width / base_width).max(0.05);
+    if state.fit_factor > 0.0 && (new_fit - state.fit_factor).abs() / state.fit_factor > 0.02 {
+        // Viewport size changed: fit-to-width rasters at the old fit are
+        // stale (the FitWidth bucket does not capture the viewport width).
+        state.cache.clear();
+        state.images = std::rc::Rc::new(slint::VecModel::from(vec![
+            slint::Image::default();
+            state.page_count as usize
+        ]));
+        ui.set_pdf_images(slint::ModelRc::from(state.images.clone()));
+    }
+    state.fit_factor = new_fit;
 
     // Layout properties.
     let page_width = state.logical_page_width();
@@ -1275,7 +1286,10 @@ fn pdf_render_visible(ui: &AppRoot, state: &mut PdfUiState) {
         format!("{:.0}%", state.zoom * 100.0)
     }));
 
-    // Rasterize the visible window (+1 page margin).
+    // Rasterize the visible window (+1 page margin) from the bounded LRU
+    // cache (PDF_SPEC §5, ≤128 MB). Pages outside the window are dropped
+    // from the image model so memory stays within the cache budget; scrolling
+    // back re-blits them from the cache instead of re-rasterizing via PDFium.
     let scale = state.render_scale();
     let first = state.page_at_scroll(current).saturating_sub(1);
     let mut last = first + 2;
@@ -1286,8 +1300,19 @@ fn pdf_render_visible(ui: &AppRoot, state: &mut PdfUiState) {
     }
     last = last.min(state.page_count as usize - 1);
 
-    let path = std::path::Path::new(&state.path);
     let empty_image = slint::Image::default();
+    for i in 0..state.page_count as usize {
+        if (i < first || i > last) && state.images.row_data(i) != Some(empty_image.clone()) {
+            state.images.set_row_data(i, empty_image.clone());
+        }
+    }
+    let bucket = if state.zoom == 1.0 {
+        reeda_pdf::cache::ScaleBucket::FitWidth
+    } else {
+        reeda_pdf::cache::ScaleBucket::bucket_for_zoom(state.zoom)
+    };
+
+    let path = std::path::Path::new(&state.path);
     for i in first..=last {
         if state
             .images
@@ -1296,21 +1321,31 @@ fn pdf_render_visible(ui: &AppRoot, state: &mut PdfUiState) {
         {
             continue;
         }
-        match reeda_pdf::render::render_page(path, i as u32, scale, state.theme) {
-            Ok(page) => {
-                let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
-                    &page.rgba,
-                    page.width,
-                    page.height,
-                );
-                let image = slint::Image::from_rgba8(buffer);
-                state.images.set_row_data(i, image);
-            }
-            Err(e) => {
-                ui.set_pdf_page_label(slint::SharedString::from(format!("PDF error: {e}")));
-                return;
-            }
-        }
+        let key = reeda_pdf::cache::RasterKey {
+            page: i as u32,
+            scale: bucket,
+            theme: state.theme,
+        };
+        let page = match state.cache.get(&key) {
+            Some(cached) => cached.clone(),
+            None => match reeda_pdf::render::render_page(path, i as u32, scale, state.theme) {
+                Ok(page) => {
+                    state.cache.insert(key, page.clone());
+                    page
+                }
+                Err(e) => {
+                    ui.set_pdf_page_label(slint::SharedString::from(format!("PDF error: {e}")));
+                    return;
+                }
+            },
+        };
+        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+            &page.rgba,
+            page.width,
+            page.height,
+        );
+        let image = slint::Image::from_rgba8(buffer);
+        state.images.set_row_data(i, image);
     }
     state.pending_layout = false;
 }

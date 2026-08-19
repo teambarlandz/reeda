@@ -1,8 +1,9 @@
 # Performance Specification — Reeda
 
-> Status: draft · Version: 0.1 · Owner: @teambarlandz · Last updated: 2026-08-17
-> Budgets are gate criteria for milestones; measured on a mid-range device
-> (P0 tier, TESTING.md §6).
+> Status: verified on desktop (M7d) · Version: 1.0 · Owner: @teambarlandz · Last updated: 2026-08-19
+> Budgets are gate criteria for milestones; device budgets (Pixel 6a, P0
+> tier, TESTING.md §6) are measured in M7g via `scripts/bench_android.ps1`.
+> Desktop-measured numbers (2026-08-19, Win11 x64, release build): see §9.
 
 ## 1. Budgets (summary)
 
@@ -54,9 +55,16 @@
 
 - Raster at `scale = ceil(display_dpr × zoom)` capped 4096 px/axis
   (PDF_SPEC §3); bucket-based cache (fit-width, 100 %…500 %).
-- Prefetch neighbors on idle; eviction on memory pressure
-  (`onTrimMemory` → drop 50 %).
-- Scroll view uses chunked bitmap uploads (avoid full-view textures).
+- **Wired in M7d**: the 128 MB LRU `RasterCache` is now the source of
+  truth in the reader (`PdfUiState.cache`): visible-window rasters are
+  served from the cache (scrolling back blits, never re-rasterizes), the
+  image model only holds the visible window ±1 so memory stays within the
+  byte budget, and fit-to-width rasters are invalidated on a material
+  viewport resize (the FitWidth bucket cannot capture the viewport width).
+- Prefetch neighbors on idle: P2 — the render window is ±1 page, which
+  covers sequential scroll; measure benefit on device.
+- Eviction on memory pressure (`onTrimMemory` → `cache.drop_to(0.5)`):
+  wired into `RasterCache` (Android wiring in M7g).
 
 ## 6. Search & indexing
 
@@ -82,13 +90,26 @@
 
 ## 9. Tooling & measurement
 
-- Host: `cargo bench` micro-benchmarks (paginator, CFI, chunker) with
-  baseline CI job (regression gate > 15 %).
+- **Desktop (M7d)**: `scripts/bench_desktop.ps1` runs the release-mode
+  benchmark tests that are measurable without a device:
+  - `reeda-search/tests/perf_fixture.rs` — 50-book index build + query p95
+    (M4.7 gate: < 10 s/100 books, < 1 s p95). Measured: 3.4 s total suite
+    on 2026-08-19.
+  - `reeda-pdf/tests/perf_bench.rs` — synthetic 12-page PDF; first raster
+    p95 (budget < 250 ms) and LRU cached blit p95 (budget < 8 ms).
+    Measured: 19.6 ms / 0.1 µs.
+  - `reeda-epub/tests/perf_bench.rs` — synthetic avg (231 k chars) + long
+    (1.54 M chars) chapter pagination p95 (budget < 200 / < 600 ms desktop
+    smoke; device budgets < 150 / < 400 ms). Measured: 52.8 µs / 130.7 µs.
+  - All benches are release-gated with generous debug smoke thresholds so
+    `cargo test` stays fast; they fail the CI run on regression.
+- Host micro-benchmarks (`cargo bench`, paginator/CFI/chunker): P2 —
+  the release p95 tests above cover the same hot paths with less tooling.
 - Android: Perfetto traces around page-turn/TTS-start; `dumpsys
   meminfo`; `adb shell dumpsys batterystats` for drain; startup via
-  `adb shell am start -W`.
-- CI gate: budgets from §1 enforced by `scripts/bench_android.ps1`
-  (release build, Pixel 6a; fails PR on regression).
+  `adb shell am start -W` (M7g, needs device).
+- CI gate: device budgets from §1 enforced by `scripts/bench_android.ps1`
+  (release build, Pixel 6a; fails PR on regression) — pending device.
 
 ## 10. Known risks
 

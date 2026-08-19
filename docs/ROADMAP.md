@@ -96,7 +96,7 @@ panel, night/sepia render filters; deferred P2 items tracked in TODO.md.
 
 - [x] Accessibility pass (TalkBack labels, selection a11y, large fonts)
 - [x] Localization framework + Standard UK/American English first, plurals, RTL-ready
-- [ ] Performance pass vs budgets (PERFORMANCE.md)
+- [x] Performance pass vs budgets (PERFORMANCE.md)
 - [ ] Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
 - [ ] Play Store assets: icon, screenshots, store listing, privacy policy
 - [ ] Internal test → closed beta → open beta → production
