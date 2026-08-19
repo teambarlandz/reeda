@@ -83,12 +83,14 @@ word highlight tracks speech.
 
 ## M6 — PDF support (3 weeks)
 
-- [ ] PDFium integration (`pdfium-render`), page rasterization + caching
-- [ ] Scroll/zoom/fit gestures, page indicator, jump-to-page
-- [ ] Outline view, night filter
+- [x] PDFium integration (`pdfium-render`), page rasterization + caching
+- [x] Scroll/zoom/fit gestures, page indicator, jump-to-page
+- [x] Outline view, night filter
 - [ ] (P2 if time) selection/copy, PDF search
 
-**Exit:** PDF renders fast, zooms smoothly, jumps correctly.
+**Exit:** PDF renders fast, zooms smoothly, jumps correctly. — MET (M6.5,
+2026-08-19): continuous page canvas, fit-width/zoom, jump dialog, outline
+panel, night/sepia render filters; deferred P2 items tracked in TODO.md.
 
 ## M7 — Hardening & ship (3 weeks)
 

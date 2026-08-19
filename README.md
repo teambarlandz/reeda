@@ -9,13 +9,13 @@ stack (Slint UI on the Android platform).
 
 ## Status
 
-> 🚧 **Pre-alpha — M5 read-aloud complete.** Read any EPUB chapter aloud with
-> a reader TTS bar (play/pause, stop, chapter skip, speed chip) and word-level
-> highlight tracking the speech; narration auto-turns pages and advances
-> chapters. The Android TextToSpeech bridge (`AndroidTtsHost` + `TtsShim.java`)
-> is in place and compile-checked in CI; notification controls and audio
-> focus verify on device in M7. Full-text search (M4) ships in the Library
-> and reader chrome. M6 (PDF reader) is next.
+> 🚧 **Pre-alpha — M6 PDF reader complete.** Import and read PDFs with a
+> continuous page canvas: fit-to-width default, zoom 0.25×–5×, double-tap
+> zoom toggle, jump-to-page, document outline panel (tap to navigate),
+> night/sepia render-time filters, and a memory-budgeted raster cache.
+> The Android TextToSpeech bridge (`AndroidTtsHost` + `TtsShim.java`) is in
+> place and compile-checked in CI; notification controls and audio focus
+> verify on device in M7. M7 (hardening & ship) is next.
 
 | Area | State |
 |------|-------|
@@ -28,6 +28,7 @@ stack (Slint UI on the Android platform).
 | Highlighting & notes (M3) | Done |
 | Full-text search (M4) | Done |
 | Read aloud / TTS (M5) | Done (device verification in M7) |
+| PDF reader (M6) | Done |
 | Play Store release | Not started |
 
 ## Feature map (Apple Books parity)

@@ -258,9 +258,9 @@ on emulator/device as a follow-up.
     filters shipped in M6.2 `theme.rs`)
   - Tests: outline extraction + empty outline, snapshot exposes outline,
     212 workspace tests green, desktop smoke
-- [ ] **M6.6** Tests + docs + close:
-  - Full workspace tests; update PDF_SPEC status, CHANGELOG.md, README.md
-    status; TODO checkboxes; commit/push
+- [x] **M6.6** Tests + docs + close:
+  - Full workspace tests (212 green); PDF_SPEC status, CHANGELOG.md,
+    README.md status, ROADMAP M6 exit criteria updated; commit/push
 
 **Deferred (spec P2):** selection/copy, PDF search, password-protected
 PDFs, text extraction for TTS (TTS-07).

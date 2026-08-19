@@ -132,10 +132,38 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
     verification in M7 (see docs/TTS_SPEC.md §2).
   - 159 tests across workspace (88 reeda-core, 54 reeda-epub, 16
     reeda-search, 18 reeda-tts, 1 perf fixture).
+- **M6 PDF reader**:
+  - `reeda-pdf` renderer (M6.2): `render.rs` rasterizes pages via PDFium
+    (`pdfium-render` `PdfBitmap`, RGBA at 96 dpi × scale, 4096 px/axis
+    cap), `cache.rs` 128 MB LRU keyed `(page, scale_bucket, theme)`,
+    `theme.rs` render-time night (luminance-preserving invert-ish) and
+    sepia filters, multi-page document + page-size APIs, error mapping to
+    `PdfError` (open/render/missing-library).
+  - Core PDF support (M6.3): `ImportPdf`/`OpenPdf`/`PdfPage` commands,
+    `PdfState` + `PdfView { page_count, page_sizes, path, outline }` in
+    the snapshot, import validation via PDFium, dedup (keyed by path),
+    store + SQLite persistence, narration guard (no TTS for PDFs yet,
+    TTS-07 P2), path resolution against the import directory.
+  - Reader PDF mode (M6.4): continuous vertical page canvas in
+    ReaderScreen (image per page, fit-to-width default, zoom 0.25×–5×
+    bar, double-tap fit-width ↔ 100 % toggle), auto-hiding page
+    indicator + jump-to-page dialog, viewport raster loop in main.rs
+    (`PdfUiState`: LRU cache, scroll-driven render of visible pages,
+    scale buckets), theme change re-renders with the night/sepia filter,
+    `PdfView` export from reeda-core.
+  - Outline support (M6.5): `reeda-pdf::outline::extract_outline`
+    flattens the PDFium bookmark tree pre-order (iterative, no stack
+    overflow on deep trees) into `{ title, page_index, depth }`;
+    `OutlineItemView` in the snapshot; reader chrome "≡" toggle opens an
+    outline panel (depth indentation, tap-to-jump via
+    `pdf-outline-jumped`, empty-state message).
+  - 212 tests across workspace (98 reeda-core, 54 reeda-epub, 25
+    reeda-pdf, 16 reeda-search, 18 reeda-tts, 1 perf fixture).
 
 ### Changed
 
-- (none yet)
+- `pdf_jump` in main.rs now takes a 1-based `u32` page (dialog path
+  parses the text, outline path passes the page directly).
 
 ### Fixed
 
