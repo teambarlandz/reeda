@@ -9,7 +9,7 @@ pub mod search;
 pub mod storage;
 pub mod store;
 
-pub use app::{App, StateSnapshot};
+pub use app::{App, PdfView, StateSnapshot};
 pub use commands::Command;
 pub use events::{Event, NarrationState};
 pub use export::export_markdown;

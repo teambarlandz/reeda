@@ -242,10 +242,11 @@ on emulator/device as a follow-up.
     PdfDocument opened lazily on OpenPdf
   - Snapshot: `PdfState { current_page, page_count, page_sizes }`
   - Tests: import PDF, open, navigate pages
-- [ ] **M6.4** reeda-ui — Reader PDF mode:
+- [x] **M6.4** reeda-ui — Reader PDF mode:
   - ReaderScreen.slint: PDF canvas (image per page), scroll/zoom,
     page indicator (auto-hide), jump-to-page dialog
-  - Double-tap zoom toggle (fit-width ↔ 100%); pinch zoom 0.25×–5×
+  - Double-tap zoom toggle (fit-width ↔ 100%); zoom 0.25×–5× via bar
+    buttons (pinch gesture deferred to device verification)
   - main.rs: PDF commands, page navigation, zoom state from snapshot
   - Tests: UI compiles; manual smoke
 - [ ] **M6.5** reeda-pdf — Outline + night filter:

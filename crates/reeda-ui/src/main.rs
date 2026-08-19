@@ -5,6 +5,8 @@ mod theme;
 
 slint::include_modules!();
 
+use slint::Model;
+
 fn main() {
     let app = AppRoot::new().unwrap();
 
@@ -38,16 +40,23 @@ fn main() {
     // If a file path is provided as CLI arg, import it and open.
     let args: Vec<String> = std::env::args().collect();
     if let Some(path) = args.get(1) {
-        let epub_data = match std::fs::read(path) {
-            Ok(d) => d,
-            Err(e) => {
-                eprintln!("Failed to read {path}: {e}");
-                return;
+        if path.to_lowercase().ends_with(".pdf") {
+            let events = core.dispatch(reeda_core::Command::ImportPdf { path: path.clone() });
+            if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
+                let _ = core.dispatch(reeda_core::Command::OpenBook { book_id: *book_id });
             }
-        };
-        let events = core.import_from_bytes(epub_data, path.clone());
-        if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
-            let _ = core.dispatch(reeda_core::Command::OpenBook { book_id: *book_id });
+        } else {
+            let epub_data = match std::fs::read(path) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("Failed to read {path}: {e}");
+                    return;
+                }
+            };
+            let events = core.import_from_bytes(epub_data, path.clone());
+            if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
+                let _ = core.dispatch(reeda_core::Command::OpenBook { book_id: *book_id });
+            }
         }
     }
 
@@ -58,6 +67,9 @@ fn main() {
     // ── Wire callbacks ──────────────────────────────────────────────
     let weak = app.as_weak();
     let core_cell = std::rc::Rc::new(std::cell::RefCell::new(core));
+
+    // Device pixel ratio drives the PDF render scale (PDF_SPEC §3).
+    PDF_UI.with(|cell| cell.borrow_mut().dpr = app.window().scale_factor());
 
     app.on_next_page({
         let weak = weak.clone();
@@ -179,6 +191,18 @@ fn main() {
             let app = weak.unwrap();
             theme::apply_theme(&app, theme);
             app.set_settings_theme_index(index);
+            // Re-render PDF pages with the matching night/sepia filter.
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf.theme = pdf_theme(theme);
+                pdf.cache.clear();
+                pdf.images = std::rc::Rc::new(slint::VecModel::from(vec![
+                    slint::Image::default();
+                    pdf.page_count as usize
+                ]));
+                app.set_pdf_images(slint::ModelRc::from(pdf.images.clone()));
+                pdf_render_visible(&app, &mut pdf);
+            });
         }
     });
 
@@ -710,6 +734,68 @@ fn main() {
         },
     );
 
+    // ── PDF viewer (M6.4) ─────────────────────────────────────────────
+    app.on_pdf_scrolled({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            let app = weak.unwrap();
+            let mut core = core_cell.borrow_mut();
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_scrolled(&app, &mut pdf, &mut core);
+            });
+        }
+    });
+
+    app.on_pdf_visible_changed({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |width: f32, height: f32| {
+            let app = weak.unwrap();
+            let mut core = core_cell.borrow_mut();
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_visible_changed(&app, &mut pdf, &mut core, width, height);
+            });
+        }
+    });
+
+    app.on_pdf_zoom_by({
+        let weak = weak.clone();
+        move |delta: f32| {
+            let app = weak.unwrap();
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_zoom_to(&app, &mut pdf, delta);
+            });
+        }
+    });
+
+    app.on_pdf_toggle_zoom({
+        let weak = weak.clone();
+        move || {
+            let app = weak.unwrap();
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_zoom_to(&app, &mut pdf, 0.0);
+            });
+        }
+    });
+
+    app.on_pdf_jumped({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |page: slint::SharedString| {
+            let app = weak.unwrap();
+            let mut core = core_cell.borrow_mut();
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_jump(&app, &mut pdf, &mut core, page.as_str());
+            });
+        }
+    });
+
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
@@ -720,6 +806,26 @@ fn main() {
 fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
     let notes_open = app.get_show_notes();
     let search_open = app.get_show_search();
+
+    // PDF reader state (M6.4).
+    match snap.pdf.as_ref() {
+        Some(view) => {
+            app.set_pdf_mode(true);
+            app.set_pdf_page_count(view.page_count as i32);
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_open(app, view, &mut pdf);
+            });
+        }
+        None => {
+            app.set_pdf_mode(false);
+            app.set_pdf_page_count(0);
+            PDF_UI.with(|cell| {
+                let mut pdf = cell.borrow_mut();
+                pdf_close(app, &mut pdf);
+            });
+        }
+    }
 
     if let Some(ref book) = snap.current_book {
         if !notes_open && !search_open {
@@ -917,4 +1023,339 @@ fn update_ui(app: &AppRoot, snap: &reeda_core::StateSnapshot) {
 /// Strip `<mark>` tags from a search snippet for plain-text rendering.
 fn strip_mark_tags(s: &str) -> String {
     s.replace("<mark>", "").replace("</mark>", "")
+}
+
+/// Gap (logical px) between stacked PDF pages in the canvas.
+const PDF_PAGE_GAP: f32 = 8.0;
+
+/// UI-side state for the PDF viewer (M6.4, PDF_SPEC §3–§5).
+///
+/// Raster pages are produced by `reeda_pdf` at `dpr × fit × zoom` scale,
+/// cached in an LRU raster cache, and pushed into the Slint `[image]`
+/// property as RGBA images. Only the pages intersecting the viewport are
+/// rasterized.
+struct PdfUiState {
+    /// Path of the currently open PDF (empty = none).
+    path: String,
+    /// Page count of the open document.
+    page_count: u32,
+    /// Per-page `(width, height)` in PDF points (72 dpi).
+    page_sizes_pt: Vec<(f32, f32)>,
+    /// Zoom multiplier on fit-to-width (1.0 = fit).
+    zoom: f32,
+    /// Fit factor: visible width / page width at 96 dpi (0 until known).
+    fit_factor: f32,
+    /// Visible viewport size (logical px, reported by the UI).
+    visible_width: f32,
+    visible_height: f32,
+    /// Device pixel ratio (from the window).
+    dpr: f32,
+    /// Render-time theme filter.
+    theme: reeda_pdf::theme::Theme,
+    /// LRU raster cache (PDF_SPEC §5, ≤128 MB).
+    cache: reeda_pdf::cache::RasterCache,
+    /// Per-page raster images pushed to the UI (default image = not rendered).
+    images: std::rc::Rc<slint::VecModel<slint::Image>>,
+    /// Whether the open document has been reset but not yet rendered
+    /// (first layout may still be unknown).
+    pending_layout: bool,
+}
+
+impl Default for PdfUiState {
+    fn default() -> Self {
+        Self {
+            path: String::new(),
+            page_count: 0,
+            page_sizes_pt: Vec::new(),
+            zoom: 1.0,
+            fit_factor: 0.0,
+            visible_width: 0.0,
+            visible_height: 0.0,
+            dpr: 1.0,
+            theme: reeda_pdf::theme::Theme::Normal,
+            cache: reeda_pdf::cache::RasterCache::new(),
+            images: std::rc::Rc::new(slint::VecModel::default()),
+            pending_layout: true,
+        }
+    }
+}
+
+impl PdfUiState {
+    /// Logical width of a page at the current zoom (all pages share width
+    /// after fit-to-width; 0 before the visible width is known).
+    fn logical_page_width(&self) -> f32 {
+        self.visible_width * self.zoom
+    }
+
+    /// Logical height of page `i` at the current zoom.
+    fn logical_page_height(&self, i: usize) -> f32 {
+        let (_, h_pt) = self.page_sizes_pt[i];
+        h_pt * reeda_pdf::render::PIXELS_PER_POINT * self.fit_factor * self.zoom
+    }
+
+    /// Total canvas height: pages + gaps + margins.
+    fn content_height(&self) -> f32 {
+        let sum: f32 = (0..self.page_count as usize)
+            .map(|i| self.logical_page_height(i))
+            .sum();
+        let gaps = if self.page_count > 1 {
+            (self.page_count as f32 - 1.0) * PDF_PAGE_GAP
+        } else {
+            0.0
+        };
+        sum + gaps + 16.0
+    }
+
+    /// Render scale (device px per PDF point) for the current zoom.
+    fn render_scale(&self) -> f32 {
+        self.dpr * self.fit_factor * self.zoom
+    }
+
+    /// Page index under the viewport's vertical center.
+    fn page_at_scroll(&self, offset: f32) -> usize {
+        let center = offset + self.visible_height * 0.5 - 8.0;
+        let mut y = 0.0f32;
+        for i in 0..self.page_count as usize {
+            let h = self.logical_page_height(i);
+            if center < y + h {
+                return i;
+            }
+            y += h + PDF_PAGE_GAP;
+        }
+        self.page_count.saturating_sub(1) as usize
+    }
+
+    /// Scroll offset (viewport y) that centers page `index`.
+    fn scroll_for_page(&self, index: u32) -> f32 {
+        let mut y = 0.0f32;
+        for i in 0..index as usize {
+            y += self.logical_page_height(i) + PDF_PAGE_GAP;
+        }
+        (y - (self.visible_height - self.logical_page_height(index as usize)) * 0.5).max(0.0)
+    }
+}
+
+/// Theme mapping: core theme → PDF render-time filter.
+fn pdf_theme(theme: reeda_core::Theme) -> reeda_pdf::theme::Theme {
+    match theme {
+        reeda_core::Theme::Light => reeda_pdf::theme::Theme::Normal,
+        reeda_core::Theme::Sepia => reeda_pdf::theme::Theme::Sepia,
+        reeda_core::Theme::Dark => reeda_pdf::theme::Theme::Night,
+    }
+}
+
+thread_local! {
+    /// PDF viewer UI state (M6.4). The UI runs on a single thread, so a
+    /// thread-local is safe here.
+    static PDF_UI: std::cell::RefCell<PdfUiState> =
+        std::cell::RefCell::new(PdfUiState::default());
+}
+
+/// Reset the PDF viewer for a newly opened document.
+fn pdf_open(ui: &AppRoot, pdf: &reeda_core::PdfView, state: &mut PdfUiState) {
+    if state.path == pdf.path && state.page_count == pdf.page_count {
+        return;
+    }
+    state.path = pdf.path.clone();
+    state.page_count = pdf.page_count;
+    state.page_sizes_pt = pdf.page_sizes.clone();
+    state.zoom = 1.0;
+    state.fit_factor = 0.0;
+    state.cache.clear();
+    state.images = std::rc::Rc::new(slint::VecModel::from(vec![
+        slint::Image::default();
+        pdf.page_count as usize
+    ]));
+    ui.set_pdf_images(slint::ModelRc::from(state.images.clone()));
+    state.pending_layout = true;
+
+    // Start at the top of the document.
+    ui.set_pdf_scroll_target(0.0);
+}
+
+/// Clear the PDF viewer when the open book is not a PDF.
+fn pdf_close(ui: &AppRoot, state: &mut PdfUiState) {
+    if state.path.is_empty() && state.page_count == 0 {
+        return;
+    }
+    state.path.clear();
+    state.page_count = 0;
+    state.page_sizes_pt.clear();
+    state.zoom = 1.0;
+    state.fit_factor = 0.0;
+    state.pending_layout = true;
+    state.cache.clear();
+    state.images = std::rc::Rc::new(slint::VecModel::default());
+    ui.set_pdf_images(slint::ModelRc::from(state.images.clone()));
+    ui.set_pdf_page_heights(slint::ModelRc::from(Vec::<f32>::new().as_slice()));
+    ui.set_pdf_page_width(0.0);
+    ui.set_pdf_content_height(0.0);
+    ui.set_pdf_page_label(slint::SharedString::from(""));
+    ui.set_pdf_zoom_text(slint::SharedString::from(""));
+}
+
+/// Jump dialog handler: page number (1-based) → center that page.
+fn pdf_jump(ui: &AppRoot, state: &mut PdfUiState, core: &mut reeda_core::App, page: &str) {
+    if state.path.is_empty() {
+        return;
+    }
+    let Ok(num) = page.trim().parse::<u32>() else {
+        return;
+    };
+    let index = num
+        .saturating_sub(1)
+        .min(state.page_count.saturating_sub(1));
+    core.dispatch(reeda_core::Command::PdfPage { page_index: index });
+    ui.set_pdf_scroll_target(state.scroll_for_page(index));
+    pdf_render_visible(ui, state);
+}
+
+/// Rasterize the pages intersecting the viewport and refresh the layout
+/// properties (page sizes, content height, label, zoom text).
+fn pdf_render_visible(ui: &AppRoot, state: &mut PdfUiState) {
+    if state.path.is_empty() || state.page_count == 0 {
+        return;
+    }
+    if state.visible_width <= 0.0 {
+        return; // First layout not reported yet; pdf-visible-changed will retry.
+    }
+    let Some((w0_pt, _)) = state.page_sizes_pt.first().copied() else {
+        return;
+    };
+    let base_width = w0_pt * reeda_pdf::render::PIXELS_PER_POINT;
+    state.fit_factor = (state.visible_width / base_width).max(0.05);
+
+    // Layout properties.
+    let page_width = state.logical_page_width();
+    let heights: Vec<f32> = (0..state.page_count as usize)
+        .map(|i| state.logical_page_height(i))
+        .collect();
+    ui.set_pdf_page_width(page_width);
+    ui.set_pdf_page_heights(slint::ModelRc::from(heights.as_slice()));
+    ui.set_pdf_content_height(state.content_height());
+
+    // Page label + zoom text.
+    let current = ui.get_pdf_scroll_offset();
+    let page = state
+        .page_at_scroll(current)
+        .min(state.page_count as usize - 1);
+    ui.set_pdf_page_label(slint::SharedString::from(format!(
+        "{} / {}",
+        page + 1,
+        state.page_count
+    )));
+    ui.set_pdf_zoom_text(slint::SharedString::from(if state.zoom == 1.0 {
+        "Fit".into()
+    } else {
+        format!("{:.0}%", state.zoom * 100.0)
+    }));
+
+    // Rasterize the visible window (+1 page margin).
+    let scale = state.render_scale();
+    let first = state.page_at_scroll(current).saturating_sub(1);
+    let mut last = first + 2;
+    while last < state.page_count as usize
+        && (state.page_at_scroll(current + state.visible_height * 0.5) + 1) > last
+    {
+        last += 1;
+    }
+    last = last.min(state.page_count as usize - 1);
+
+    let path = std::path::Path::new(&state.path);
+    let empty_image = slint::Image::default();
+    for i in first..=last {
+        if state
+            .images
+            .row_data(i)
+            .is_some_and(|img| img != empty_image)
+        {
+            continue;
+        }
+        match reeda_pdf::render::render_page(path, i as u32, scale, state.theme) {
+            Ok(page) => {
+                let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                    &page.rgba,
+                    page.width,
+                    page.height,
+                );
+                let image = slint::Image::from_rgba8(buffer);
+                state.images.set_row_data(i, image);
+            }
+            Err(e) => {
+                ui.set_pdf_page_label(slint::SharedString::from(format!("PDF error: {e}")));
+                return;
+            }
+        }
+    }
+    state.pending_layout = false;
+}
+
+/// Apply a zoom delta (0.25 steps) or a fit/100% toggle, then re-render.
+fn pdf_zoom_to(ui: &AppRoot, state: &mut PdfUiState, delta: f32) {
+    if state.path.is_empty() {
+        return;
+    }
+    if delta == 0.0 {
+        // Toggle fit-width ↔ 100% (1 buffer px per device px).
+        let Some((w0_pt, _)) = state.page_sizes_pt.first().copied() else {
+            return;
+        };
+        let base_width = w0_pt * reeda_pdf::render::PIXELS_PER_POINT;
+        let zoom_100 = if state.visible_width > 0.0 {
+            (base_width / state.visible_width).clamp(0.25, 5.0)
+        } else {
+            1.0
+        };
+        state.zoom = if state.zoom == 1.0 { zoom_100 } else { 1.0 };
+    } else {
+        state.zoom = (state.zoom + delta).clamp(0.25, 5.0);
+    }
+    // Zoom changes invalidate the rasters (different scale bucket).
+    state.cache.clear();
+    state.images = std::rc::Rc::new(slint::VecModel::from(vec![
+        slint::Image::default();
+        state.page_count as usize
+    ]));
+    ui.set_pdf_images(slint::ModelRc::from(state.images.clone()));
+    // Keep the current page centered.
+    let page = state.page_at_scroll(ui.get_pdf_scroll_offset());
+    pdf_render_visible(ui, state);
+    ui.set_pdf_scroll_target(state.scroll_for_page(page as u32));
+}
+
+/// Viewport moved: sync the current page with the core and rasterize
+/// anything newly visible.
+fn pdf_scrolled(ui: &AppRoot, state: &mut PdfUiState, core: &mut reeda_core::App) {
+    if state.path.is_empty() {
+        return;
+    }
+    let offset = ui.get_pdf_scroll_offset();
+    let page = state.page_at_scroll(offset);
+    let current = core.snapshot().current_page as usize;
+    if page != current && page < state.page_count as usize {
+        core.dispatch(reeda_core::Command::PdfPage {
+            page_index: page as u32,
+        });
+    }
+    pdf_render_visible(ui, state);
+}
+
+/// The viewport size changed (first layout or window resize): recompute the
+/// fit factor, restore the reading position on first layout, and re-raster.
+fn pdf_visible_changed(
+    ui: &AppRoot,
+    state: &mut PdfUiState,
+    core: &mut reeda_core::App,
+    width: f32,
+    height: f32,
+) {
+    state.visible_width = width;
+    state.visible_height = height;
+    if state.pending_layout && !state.path.is_empty() {
+        let page = core.snapshot().current_page;
+        pdf_render_visible(ui, state);
+        ui.set_pdf_scroll_target(state.scroll_for_page(page));
+    } else {
+        pdf_render_visible(ui, state);
+    }
 }

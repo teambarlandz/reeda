@@ -2,6 +2,7 @@
 // See docs/UI_UX.md §4 and docs/HIGHLIGHTS_SPEC.md §3.
 
 import { Theme } from "./Theme.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export struct LineRun {
     text: string,
@@ -34,6 +35,24 @@ export component ReaderScreen inherits Rectangle {
     callback narration-skip-back();
     callback narration-skip-forward();
     callback narration-speed-cycle();
+
+    // ── PDF mode (M6.4, PDF_SPEC §4) ─────────────────────────────────
+    callback pdf-scrolled();
+    callback pdf-visible-changed(float, float);
+    callback pdf-zoom-by(float);
+    callback pdf-toggle-zoom();
+    callback pdf-jumped(string);
+
+    in property < bool > pdf-mode: false;
+    in property < int > pdf-page-count: 0;
+    in property < [image] > pdf-images: [];
+    in property < [length] > pdf-page-heights: [];
+    in property < length > pdf-page-width: 0px;
+    in property < length > pdf-content-height: 0px;
+    in property < string > pdf-page-label: "";
+    in property < string > pdf-zoom-text: "";
+    in-out property < length > pdf-scroll-offset: 0px;
+    in property < length > pdf-scroll-target: 0px;
 
     in property < bool > chrome-visible: false;
     in property < string > book-title: "";
@@ -214,8 +233,203 @@ export component ReaderScreen inherits Rectangle {
             }
         }
 
-        // Page text area.
-        Rectangle {
+        // PDF canvas (M6.4): continuous vertical scroll of page images.
+        if root.pdf-mode : Rectangle {
+            property < bool > pdf-open: false;
+            // Mirrors root.pdf-scroll-target so we can react to jumps (Rust
+            // sets the target, this local binding updates → -changed fires).
+            property < length > jump-target: root.pdf-scroll-target;
+            horizontal-stretch: 1;
+            background: Theme.current.background;
+
+            sv := ScrollView {
+                viewport-width: max(root.pdf-page-width, sv.visible-width);
+                viewport-height: root.pdf-content-height;
+
+                scrolled => {
+                    root.pdf-scroll-offset = -sv.viewport-y;
+                    root.pdf-scrolled();
+                }
+
+                Rectangle {
+                    x: (sv.visible-width - root.pdf-page-width) / 2;
+                    y: 8px;
+                    width: root.pdf-page-width;
+                    height: root.pdf-content-height;
+
+                    VerticalLayout {
+                        spacing: 8px;
+
+                        for i in root.pdf-page-count : Rectangle {
+                            width: parent.width;
+                            height: root.pdf-page-heights[i];
+                            background: Theme.current.surface;
+                            border-radius: 2px;
+
+                            Image {
+                                width: parent.width;
+                                height: parent.height;
+                                source: root.pdf-images[i];
+                                image-fit: fill;
+                            }
+                        }
+                    }
+
+                    // Single-tap toggles chrome; double-tap toggles zoom.
+                    TouchArea {
+                        clicked => { root.toggle-chrome(); }
+                        double-clicked => { root.pdf-toggle-zoom(); }
+                    }
+                }
+            }
+
+            // Sync the reported scroll offset when Rust jumps the viewport.
+            changed jump-target => {
+                sv.viewport-y = -root.pdf-scroll-target;
+            }
+
+            // Report viewport size changes (first layout + resizes).
+            property < length > pdf-vw: sv.visible-width;
+            property < length > pdf-vh: sv.visible-height;
+            changed pdf-vw => {
+                root.pdf-visible-changed(pdf-vw / 1px, pdf-vh / 1px);
+            }
+
+            // Page indicator + zoom controls (auto-hide with chrome).
+            if root.chrome-visible : Rectangle {
+                x: (parent.width - 220px) / 2;
+                y: parent.height - 46px;
+                width: 220px;
+                height: 38px;
+                border-radius: 19px;
+                background: Theme.current.surface;
+                border-width: 1px;
+                border-color: Theme.current.surface_variant;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 10px;
+                    alignment: center;
+
+                    Text {
+                        text: "−";
+                        font-size: 16pt;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => { root.pdf-zoom-by(-0.25); }
+                        }
+                    }
+
+                    Text {
+                        text: root.pdf-zoom-text;
+                        font-size: 11pt;
+                        font-weight: 600;
+                        color: Theme.current.accent;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => { root.pdf-toggle-zoom(); }
+                        }
+                    }
+
+                    Text {
+                        text: "+";
+                        font-size: 16pt;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => { root.pdf-zoom-by(0.25); }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 1px;
+                        height: 20px;
+                        background: Theme.current.surface_variant;
+                    }
+
+                    Text {
+                        text: root.pdf-page-label;
+                        font-size: 11pt;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => { pdf-open = true; }
+                        }
+                    }
+                }
+            }
+
+            // Jump-to-page dialog.
+            if pdf-open : Rectangle {
+                x: (parent.width - 260px) / 2;
+                y: 56px;
+                width: 260px;
+                height: 52px;
+                border-radius: 10px;
+                background: Theme.current.surface;
+                border-width: 1px;
+                border-color: Theme.current.surface_variant;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    spacing: 8px;
+                    alignment: center;
+
+                    Text {
+                        text: "Go to page";
+                        font-size: 11pt;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 64px;
+                        height: 30px;
+                        background: Theme.current.surface_variant;
+                        border-radius: 6px;
+
+                        jump-input := TextInput {
+                            width: 64px;
+                            height: 30px;
+                            font-size: 12pt;
+                            color: Theme.current.foreground;
+                            horizontal-alignment: center;
+                            input-type: number;
+
+                            accepted => {
+                                pdf-open = false;
+                                root.pdf-jumped(self.text);
+                            }
+                        }
+                    }
+
+                    Text {
+                        text: "Go";
+                        font-size: 11pt;
+                        font-weight: 600;
+                        color: Theme.current.accent;
+                        vertical-alignment: center;
+
+                        TouchArea {
+                            clicked => {
+                                pdf-open = false;
+                                root.pdf-jumped(jump-input.text);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Page text area (EPUB mode).
+        if !root.pdf-mode : Rectangle {
             horizontal-stretch: 1;
 
             VerticalLayout {

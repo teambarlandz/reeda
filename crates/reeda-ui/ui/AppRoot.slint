@@ -79,6 +79,18 @@ export component AppRoot inherits Window {
     in-out property < float > reader-page-line-height: 1.5;
     in-out property < bool > reader-edit-popover-visible: false;
 
+    // ── PDF reader properties (M6.4, PDF_SPEC §4) ───────────────────
+    in-out property < bool > pdf-mode: false;
+    in-out property < int > pdf-page-count: 0;
+    in-out property < [image] > pdf-images: [];
+    in-out property < [length] > pdf-page-heights: [];
+    in-out property < length > pdf-page-width: 0px;
+    in-out property < length > pdf-content-height: 0px;
+    in-out property < string > pdf-page-label: "";
+    in-out property < string > pdf-zoom-text: "";
+    in-out property < length > pdf-scroll-offset: 0px;
+    in-out property < length > pdf-scroll-target: 0px;
+
     // ── Reader callbacks ────────────────────────────────────────────
     callback next-page();
     callback prev-page();
@@ -122,6 +134,11 @@ export component AppRoot inherits Window {
     callback narration-skip-back();
     callback narration-skip-forward();
     callback narration-speed-cycle();
+    callback pdf-scrolled();
+    callback pdf-visible-changed(float, float);
+    callback pdf-zoom-by(float);
+    callback pdf-toggle-zoom();
+    callback pdf-jumped(string);
 
     if root.show-library : LibraryScreen {
         is-empty: root.library-is-empty;
@@ -169,6 +186,16 @@ export component AppRoot inherits Window {
         narration-active: root.narration-active;
         narration-paused: root.narration-paused;
         narration-speed-text: root.narration-speed-text;
+        pdf-mode: root.pdf-mode;
+        pdf-page-count: root.pdf-page-count;
+        pdf-images: root.pdf-images;
+        pdf-page-heights: root.pdf-page-heights;
+        pdf-page-width: root.pdf-page-width;
+        pdf-content-height: root.pdf-content-height;
+        pdf-page-label: root.pdf-page-label;
+        pdf-zoom-text: root.pdf-zoom-text;
+        pdf-scroll-offset: root.pdf-scroll-offset;
+        pdf-scroll-target: root.pdf-scroll-target;
 
         back-pressed => {
             root.show-reader = false;
@@ -227,6 +254,12 @@ export component AppRoot inherits Window {
         narration-skip-back => { root.narration-skip-back(); }
         narration-skip-forward => { root.narration-skip-forward(); }
         narration-speed-cycle => { root.narration-speed-cycle(); }
+
+        pdf-scrolled => { root.pdf-scrolled(); }
+        pdf-visible-changed(w, h) => { root.pdf-visible-changed(w, h); }
+        pdf-zoom-by(d) => { root.pdf-zoom-by(d); }
+        pdf-toggle-zoom => { root.pdf-toggle-zoom(); }
+        pdf-jumped(p) => { root.pdf-jumped(p); }
     }
 
     if root.show-notes : NotesScreen {

@@ -23,3 +23,6 @@ Thumbs.db
 
 # Vendored PDFium binaries (fetched via scripts/fetch_pdfium.ps1 / CI)
 /third_party/pdfium/
+
+# App runtime data (created on desktop run)
+/reeda_data/

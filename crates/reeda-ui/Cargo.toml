@@ -14,6 +14,7 @@ platform-android = ["slint/backend-android-activity-06", "reeda-tts/platform-and
 
 [dependencies]
 reeda-core.workspace = true
+reeda-pdf = { path = "../reeda-pdf" }
 reeda-tts = { path = "../reeda-tts", optional = true }
 slint = "1.9"
 
