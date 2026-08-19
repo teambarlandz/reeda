@@ -1,8 +1,9 @@
-[package]
+﻿[package]
 name = "reeda-tts"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+ lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda read-aloud: narration engine + Android TextToSpeech JNI bridge (docs/TTS_SPEC.md)."

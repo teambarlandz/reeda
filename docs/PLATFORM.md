@@ -126,9 +126,11 @@ adb shell am start -a android.intent.action.VIEW -d "file://..." -t "application
 
 ## 8. Backup & data extraction rules
 
-- `android:dataExtractionRules` (API 31+): allow device backup of
-  `reeda.db` + `books/` + `covers/`; exclude `cache/` and `index/`
-  (rebuildable, avoids backup bloat).
+- `android:dataExtractionRules` (API 31+) + `android:fullBackupContent`
+  (API 23–30): allow device backup of `reeda.sqlite` + `books/` +
+  `covers/`; exclude `index/` (rebuildable, avoids backup bloat).
+  Implemented in M7e: `android/res/xml/data_extraction_rules.xml` +
+  `backup_rules.xml`, wired into the manifest.
 - Cloud backup of reading progress is desirable; document DRM caveat
   (none — DRM-free only).
 - Opt-out flag `android:allowBackup` per user setting (P1).

@@ -1,8 +1,9 @@
-[package]
+﻿[package]
 name = "reeda-epub"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+ lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda EPUB engine: container, OPF/nav parsing, XHTML model, CSS subset, pagination, CFI."

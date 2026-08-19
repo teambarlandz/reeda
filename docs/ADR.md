@@ -144,6 +144,9 @@
 ## Open questions (to resolve in M0)
 
 - OQ-1: License (MIT vs Apache-2.0 vs MIT/Apache dual) — decide in M0.
-- OQ-2: Crash reporting vendor (opt-in, privacy-first) — decide in M7.
+- OQ-2: Crash reporting vendor (opt-in, privacy-first) — **resolved in M7e:
+  none in v1.** v1 ships with zero telemetry (DRM_SECURITY.md §1); an
+  anonymous opt-in reporter (stack + version + device class, deletable,
+  documented in the privacy policy) is evaluated for v1.1.
 - OQ-3: Icon/branding direction — decide in M2 (no designer yet; Slint
   component style chosen: Material3-like custom, see UI_UX.md).

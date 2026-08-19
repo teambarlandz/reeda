@@ -1,8 +1,9 @@
-[package]
+﻿[package]
 name = "reeda-pdf"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+ lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda PDF engine: PDFium rasterization, outline, page cache (docs/PDF_SPEC.md)."

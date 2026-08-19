@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Data extraction rules (API 31+, android:dataExtractionRules).
+     Include user data only (db + books + covers); exclude the rebuildable
+     search index and caches. Cloud backup requires device encryption
+     (docs/PLATFORM.md §8, DRM_SECURITY.md §3). -->
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <include domain="database" path="reeda.sqlite" />
+        <include domain="file" path="books/" />
+        <include domain="file" path="covers/" />
+        <exclude domain="file" path="index/" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="reeda.sqlite" />
+        <include domain="file" path="books/" />
+        <include domain="file" path="covers/" />
+        <exclude domain="file" path="index/" />
+    </device-transfer>
+</data-extraction-rules>

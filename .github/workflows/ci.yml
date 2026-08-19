@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly dependency audit (DRM_SECURITY.md §5).
+    - cron: "0 6 * * 1"
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,3 +67,15 @@ jobs:
       - run: cargo doc --workspace --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+
+  audit:
+    name: Dependency audit (cargo-audit)
+    # Vulnerability gate: fail on `high` (DRM_SECURITY.md §5). Runs on every
+    # push/PR and weekly on main (schedule) to catch newly published
+    # advisories.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-audit --locked
+      - run: cargo audit

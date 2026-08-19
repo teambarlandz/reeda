@@ -303,6 +303,16 @@ PDFs, text extraction for TTS (TTS-07).
     books); debug smoke thresholds keep `cargo test` fast
   - PERFORMANCE.md status → verified (desktop); device budgets (Pixel 6a,
     `bench_android.ps1`) measured in M7g
-- [ ] **M7e** Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
+- [x] **M7e** Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in):
+  - Crash reporting decision (ADR OQ-2): **none in v1**; anonymous opt-in
+    reporter evaluated for v1.1 (zero telemetry ships)
+  - `cargo audit` CI job (push/PR + weekly, fails on `high`) added to ci.yml
+  - clippy `undocumented_unsafe_blocks = deny` workspace-wide; SAFETY
+    comments on the 2 JNI unsafe blocks in reeda-tts
+  - Android backup rules: `android/res/xml/backup_rules.xml` +
+    `data_extraction_rules.xml` (db + books + covers in; index out), wired
+    into the manifest (fullBackupContent + dataExtractionRules)
+  - Docs: DRM_SECURITY status → reviewed, PLATFORM §8 implemented
+    (device verification still in M7g)
 - [ ] **M7f** Play Store assets: icon, screenshots, store listing, privacy policy
 - [ ] **M7g** Internal test → closed beta → open beta → production

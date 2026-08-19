@@ -1,8 +1,9 @@
-[package]
+﻿[package]
 name = "reeda-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+ lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda app core: domain models, app state, command bus, services."

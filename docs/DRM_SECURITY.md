@@ -1,15 +1,16 @@
 # Security, Privacy & DRM — Reeda
 
-> Status: draft · Version: 0.1 · Owner: @teambarlandz · Last updated: 2026-08-17
+> Status: reviewed & enforced (M7e) · Version: 1.0 · Owner: @teambarlandz
+> Last updated: 2026-08-19
 
 ## 1. Security posture
 
 - **No network in v1** → no transport attack surface at runtime. All
   functionality is local.
 - **Zero third-party telemetry/analytics/ads** by default (PRD FR-02).
-  Optional crash reporting (opt-in, v1.1+) must be anonymous, minimal
-  (stack + version + device class), deletable, and documented in the
-  privacy policy.
+  Crash reporting decision (ADR OQ-2, resolved M7e): **none in v1**;
+  anonymous opt-in reporter (stack + version + device class, deletable,
+  documented in the privacy policy) evaluated for v1.1.
 - App data isolation: books/db/index live in app-private `filesDir`;
   no MediaStore writes; no broad storage permission (SAF only).
 - **Zip-slip & decompression bombs** defended in `reeda-epub`
@@ -49,15 +50,21 @@
 ## 5. Hardening checklist
 
 - `unsafe` audit: only JNI + pdfium FFI (TECHNICAL_DESIGN §8); every
-  `unsafe` block has a SAFETY comment; CI lint denies undocumented unsafe
-  (clippy `undocumented_unsafe_blocks`).
-- Dependencies pinned (`Cargo.lock`) + `cargo audit` in CI weekly
-  (vulnerability gate: fail on `high`).
+  `unsafe` block has a SAFETY comment; enforced by clippy
+  `undocumented_unsafe_blocks = deny` in the workspace (M7e) — the two
+  Android JNI blocks in `reeda-tts/android_bridge.rs` are documented.
+- Dependencies pinned (`Cargo.lock`) + `cargo audit` in CI (every push/PR
+  + weekly schedule, fails on `high`) — added in M7e.
 - Release APK: signing via secrets (BUILD_CI.md §5), minify/R8 N/A
   (no Java UI), debuggable=false in release, no debug logging in release
   (log crate stripped via `release_max_level=off` for sensitive paths).
 - Intent security: exported activity only handles VIEW/SEND with our MIME
-  whitelist; content URIs opened once → copied (FR-04); no data URIs.
+  whitelist (epub/pdf only, manifest); content URIs opened once → copied
+  (FR-04); no data URIs.
+- Android backup (M7e): `android:fullBackupContent` +
+  `android:dataExtractionRules` back up only `reeda.sqlite` + `books/` +
+  `covers/`; `index/` excluded (rebuildable). Device verification still
+  pending in M7g.
 - Backup of exported files: users export intentionally (share sheet).
 
 ## 6. Threat model summary

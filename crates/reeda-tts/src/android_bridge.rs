@@ -98,6 +98,11 @@ impl AndroidTtsHost {
         if ctx.vm().is_null() || ctx.context().is_null() {
             return Err("AndroidTtsHost: not running on Android".into());
         }
+        // SAFETY: `ctx.vm()` is the JNI JavaVM pointer set by the Android
+        // runtime via ndk_context, guaranteed non-null (checked above) and
+        // valid for the lifetime of the process. `JavaVM::from_raw` takes
+        // ownership of the raw pointer without freeing it; the Android
+        // runtime owns the JVM, so ownership transfer is sound.
         let vm = unsafe { JavaVM::from_raw(ctx.vm() as *mut jni::sys::JavaVM) }
             .map_err(|e| format!("AndroidTtsHost: JavaVM::from_raw: {e}"))?;
         let mut env = vm
@@ -105,6 +110,12 @@ impl AndroidTtsHost {
             .map_err(|e| format!("AndroidTtsHost: attach: {e}"))?;
 
         // Attach the shim singleton to the application context.
+        // SAFETY: `ctx.context()` is the application Context jobject global
+        // reference provided by the Android runtime; it is valid for the
+        // process lifetime and must not be freed by us. Wrapping it in
+        // JObject::from_raw transfers ownership of the global ref to the
+        // wrapper; the shim only uses it during this call and never deletes
+        // it (the runtime retains ownership), so the reference cannot dangle.
         let ctx_obj = unsafe { JObject::from_raw(ctx.context() as jni::sys::jobject) };
         env.call_static_method(
             "io/reeda/app/TtsShim",

@@ -8,6 +8,14 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 ### Added
 
+- **M7e security review:** crash-reporting decision made (ADR OQ-2: none
+  in v1, anonymous opt-in evaluated for v1.1); `cargo audit` CI job added
+  (every push/PR + weekly schedule, fails on `high`); clippy
+  `undocumented_unsafe_blocks = deny` enabled workspace-wide with SAFETY
+  comments added to both Android JNI blocks in `reeda-tts`; Android backup
+  rules implemented (`android:fullBackupContent` +
+  `android:dataExtractionRules`: `reeda.sqlite` + `books/` + `covers/`
+  backed up, `index/` excluded). 214 tests green, clippy clean.
 - **M7d performance pass:** the PDF raster path now uses the 128 MB LRU
   `RasterCache` (PDF_SPEC §5) — visible-window pages are served from the
   cache and pages outside the window are dropped from the image model, so

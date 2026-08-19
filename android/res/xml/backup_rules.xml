@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy backup rules (API 23–30, android:fullBackupContent).
+     Back up user data only: db + books + covers; exclude the rebuildable
+     search index and caches (docs/PLATFORM.md §8, DRM_SECURITY.md §3). -->
+<full-backup-content>
+    <include domain="database" path="reeda.sqlite" />
+    <include domain="file" path="books/" />
+    <include domain="file" path="covers/" />
+    <exclude domain="file" path="index/" />
+</full-backup-content>
