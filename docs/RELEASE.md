@@ -1,20 +1,23 @@
 # Release & Publishing — Reeda
 
-> Status: draft · Version: 0.1 · Owner: @teambarlandz · Last updated: 2026-08-17
-> From "tag a version" to "live on Google Play".
+> Status: draft · Version: 0.2 · Owner: @teambarlandz · Last updated: 2026-08-19
+> **Distribution decision (2026-08-19): v1.0.0 ships via GitHub Releases
+> (per-ABI APKs + sha256 + release notes). Google Play is NOT a v1 target;
+> the Play section below applies only if Play/F-Droid distribution is
+> adopted later.**
 
 ## 1. Versioning
 
 - **SemVer** (`X.Y.Z`): major = breaking UX/format; minor = features; patch
-  = fixes. Pre-release: `-beta.N`, `-rc.N` on Play tracks.
+  = fixes. Pre-release: `-beta.N`, `-rc.N` on Play tracks (Play-only).
 - Source of truth: `VERSION` in `Cargo.toml` (workspace root, single
   version for all crates in v1) + git tag `vX.Y.Z`; CI asserts they match.
 - Changelog: [CHANGELOG.md](CHANGELOG.md) — Unreleased section merged into
   the release section at tagging (keep-a-changelog style).
 
-## 2. Release checklist (every release)
+## 2. Release checklist (GitHub Releases — v1.0.0 target)
 
-1. `main` green (ci + build-apk), all P0 device checks passed
+1. `main` green (ci + audit + build-apk), all P0 device checks passed
    (TESTING.md §6).
 2. `docs/RELEASE.md` manual checklist executed on a P0 device:
    - Fresh install → import EPUB+PDF → read 10 min → highlight+note →
@@ -22,15 +25,19 @@
      rotate during TTS → Doze during TTS → backup/restore.
 3. Changelog updated; TODO.md statuses refreshed.
 4. Tag `vX.Y.Z` (annotated) → `release.yml` builds + signs APKs
-   (BUILD_CI.md §4) → GitHub Release draft with assets.
+   (BUILD_CI.md §4) → GitHub Release with assets:
+   - Per-ABI release APKs (`aarch64-linux-android`, `x86_64-linux-android`)
+   - `sha256sums.txt`
+   - CHANGELOG excerpt as release notes
+   - Privacy policy link (host `docs/store/privacy_policy.md`)
 5. **Desktop artifact (M7):** `scripts/package.ps1` produces
    `dist/reeda-<version>-win-x64.zip` — release exe + bundled `pdfium.dll`
    (no runtime download; see PDF_SPEC.md §7). Attach to the GitHub Release
    for the desktop preview alongside the APKs.
-6. Upload to Play (below) → monitor first 48 h (crashes via Play
-   Console ANR/CR — no third-party crash tool in v1.0).
+6. Post-release: monitor issues via GitHub (no third-party crash tool in
+   v1.0 — ADR OQ-2); apply `cargo audit` `high` fixes within 2 weeks.
 
-## 3. Google Play publishing (v1.0+, via Play Console web upload)
+## 3. Google Play publishing (Play-only, deferred until v1.1+)
 
 - **Tracks**: internal testing → closed beta (10–100 testers) → open beta
   → production. Staged rollout 10 % → 100 % (v1.0+).

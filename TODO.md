@@ -325,4 +325,15 @@ PDFs, text extraction for TTS (TTS-07).
   - Privacy policy draft (`docs/store/privacy_policy.md`) — host + link
     in Play listing + Settings → About before release
   - Screenshots (2 phone + 1 tablet) deferred to M7g (device captures)
-- [ ] **M7g** Internal test → closed beta → open beta → production
+- [ ] **M7g** Ship v1.0.0 via **GitHub Releases** (NOT Play — user
+  decision 2026-08-19):
+  - NarrationService.java (manifest-declared, class missing → cargo-apk
+    build fails until written; TTS_SPEC §2: media notification +
+    audio focus + wake-lock; HostEvent::Control in reeda-tts engine +
+    bridge start/stop service calls)
+  - Toolchain: NDK r27 + SDK cmdline-tools/build-tools 35 + platform 35,
+    cargo-apk + cargo-ndk, rustup android targets, libpdfium.so per ABI
+    (third_party/pdfium has only win-x64 dll)
+  - Build per-ABI release APKs; device verification (RELEASE.md §5);
+    GitHub tag v1.0.0 + APK assets + sha256 + release notes
+  - Handoff state: AGENTS.md

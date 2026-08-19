@@ -46,12 +46,13 @@ pushes (CONTRIBUTING.md).
    `cargo-apk --release`.
 2. Sign: `keystore.jks` from `RELEASE_KEYSTORE` secret; `zipalign` +
    `apksigner` (build-tools pinned version) → signed APKs.
-3. Optional (v1.1): bundle AAB via `bundletool` (Play requires AAB for
-   delivery; until then APK upload is fine for beta).
-4. GitHub Release: changelog excerpt (CHANGELOG.md section), assets,
-   provenance (attest-build-provenance action).
-5. Play upload: **manual** step via `gradle-play-publisher`-style web
-   console or `fastlane` — v1.1, documented in RELEASE.md.
+3. GitHub Release (v1.0.0 target — **not** Play): changelog excerpt
+   (CHANGELOG.md section), per-ABI APKs + `sha256sums.txt`,
+   provenance (attest-build-provenance action). Desktop zip from
+   `scripts/package.ps1` attached too.
+4. Play/F-Droid (deferred, v1.1+ if adopted): AAB via `bundletool`
+   (Play requires AAB for delivery) + upload via web console or fastlane
+   — documented in RELEASE.md §3 (marked Play-only).
 
 ## 5. Secrets (GitHub)
 

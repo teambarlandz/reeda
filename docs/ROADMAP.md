@@ -99,9 +99,13 @@ panel, night/sepia render filters; deferred P2 items tracked in TODO.md.
 - [x] Performance pass vs budgets (PERFORMANCE.md)
 - [x] Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
 - [x] Play Store assets: icon, screenshots, store listing, privacy policy
-- [ ] Internal test → closed beta → open beta → production
+- [ ] NarrationService (foreground media notification, audio focus,
+      wake-lock) — TTS_SPEC §2, needs device (M7g)
+- [ ] Build per-ABI APKs → tag v1.0.0 → GitHub Release (APKs + sha256
+      + release notes) — NOT Play (user decision 2026-08-19)
 
-**Exit:** v1.0.0 published on Google Play.
+**Exit:** v1.0.0 released on GitHub (per-ABI APKs + sha256 + release
+notes), device-verified.
 
 ## Future (post-v1)
 

@@ -6,6 +6,14 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **Distribution decision (2026-08-19): v1.0.0 ships via GitHub Releases**
+  (per-ABI APKs + sha256 + release notes). Google Play is no longer a v1
+  target; Play-specific assets from M7f (`docs/store/`) are kept but
+  optional. ROADMAP/RELEASE/BUILD_CI/TODO updated; full handoff state in
+  AGENTS.md.
+
 ### Added
 
 - **M7f Play Store assets:** adaptive launcher icon (brand green + open
