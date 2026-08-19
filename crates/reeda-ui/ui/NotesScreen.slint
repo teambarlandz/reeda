@@ -39,7 +39,7 @@ export component NotesScreen inherits Rectangle {
                     height: 40px;
 
                     Text {
-                        text: "<";
+                        text: @tr("<");
                         font-size: 20pt;
                         color: Theme.current.foreground;
                         horizontal-alignment: center;
@@ -48,7 +48,7 @@ export component NotesScreen inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Back";
+                        accessible-label: @tr("Back");
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -66,7 +66,7 @@ export component NotesScreen inherits Rectangle {
                     height: 40px;
 
                     Text {
-                        text: "Export";
+                        text: @tr("Export");
                         font-size: 12pt;
                         font-weight: 600;
                         color: Theme.current.accent;
@@ -76,7 +76,7 @@ export component NotesScreen inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Export";
+                        accessible-label: @tr("Export");
                         clicked => { root.export(); }
                     }
                 }
@@ -90,7 +90,7 @@ export component NotesScreen inherits Rectangle {
             spacing: 12px;
 
             Text {
-                text: "No highlights or notes yet";
+                text: @tr("No highlights or notes yet");
                 font-size: 16pt;
                 font-weight: 600;
                 color: Theme.current.foreground;
@@ -98,7 +98,7 @@ export component NotesScreen inherits Rectangle {
             }
 
             Text {
-                text: "Select text in the reader and choose Highlight.";
+                text: @tr("Select text in the reader and choose Highlight.");
                 font-size: 13pt;
                 color: Theme.current.foreground;
                 opacity: 0.6;
@@ -167,7 +167,7 @@ export component NotesScreen inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Jump to note";
+                        accessible-label: @tr("Jump to note");
                         clicked => { root.jump-to(entry.annotation-id); }
                     }
                 }

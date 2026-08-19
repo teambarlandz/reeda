@@ -35,7 +35,7 @@ export component BookmarksScreen inherits Rectangle {
                     height: 40px;
 
                     Text {
-                        text: "<";
+                        text: @tr("<");
                         font-size: 20pt;
                         color: Theme.current.foreground;
                         horizontal-alignment: center;
@@ -44,7 +44,7 @@ export component BookmarksScreen inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Back";
+                        accessible-label: @tr("Back");
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -66,7 +66,7 @@ export component BookmarksScreen inherits Rectangle {
             spacing: 12px;
 
             Text {
-                text: "No bookmarks yet";
+                text: @tr("No bookmarks yet");
                 font-size: 16pt;
                 font-weight: 600;
                 color: Theme.current.foreground;
@@ -74,7 +74,7 @@ export component BookmarksScreen inherits Rectangle {
             }
 
             Text {
-                text: "Tap the ribbon icon in the reader top bar to bookmark a page.";
+                text: @tr("Tap the ribbon icon in the reader top bar to bookmark a page.");
                 font-size: 13pt;
                 color: Theme.current.foreground;
                 opacity: 0.6;
@@ -103,7 +103,7 @@ export component BookmarksScreen inherits Rectangle {
                         alignment: start;
 
                         Text {
-                            text: "🔖";
+                            text: @tr("🔖");
                             font-size: 14pt;
                             vertical-alignment: center;
                         }
@@ -128,14 +128,14 @@ export component BookmarksScreen inherits Rectangle {
                         }
 
                         Text {
-                            text: "×";
+                            text: @tr("×");
                             font-size: 16pt;
                             color: Theme.current.error;
                             vertical-alignment: center;
 
                             TouchArea {
                                 accessible-role: button;
-                                accessible-label: "Delete bookmark";
+                                accessible-label: @tr("Delete bookmark");
                                 clicked => { root.delete(entry.annotation-id); }
                             }
                         }
@@ -143,7 +143,7 @@ export component BookmarksScreen inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Jump to bookmark";
+                        accessible-label: @tr("Jump to bookmark");
                         clicked => { root.jump-to(entry.annotation-id); }
                     }
                 }

@@ -50,7 +50,7 @@ export component BookCard inherits Rectangle {
                 border-radius: 14px;
 
                 Text {
-                    text: "…";
+                    text: @tr("…");
                     color: white;
                     font-size: 16pt;
                     horizontal-alignment: center;
@@ -59,7 +59,7 @@ export component BookCard inherits Rectangle {
 
                 TouchArea {
                     accessible-role: button;
-                    accessible-label: "Edit book";
+                    accessible-label: @tr("Edit book");
                     clicked => { root.edit-requested(book.book-id); }
                 }
             }
@@ -100,7 +100,7 @@ export component BookCard inherits Rectangle {
 
     touch := TouchArea {
         accessible-role: button;
-        accessible-label: "Open book";
+        accessible-label: @tr("Open book");
         clicked => { root.clicked(book.book-id); }
     }
 }

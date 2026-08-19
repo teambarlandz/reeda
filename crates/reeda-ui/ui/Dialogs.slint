@@ -41,7 +41,7 @@ export component ErrorDialog inherits Rectangle {
                     horizontal-stretch: 0;
 
                     Text {
-                        text: "OK";
+                        text: @tr("OK");
                         color: white;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -50,7 +50,7 @@ export component ErrorDialog inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "OK";
+                        accessible-label: @tr("OK");
                         clicked => { root.open = false; }
                     }
                 }
@@ -82,7 +82,7 @@ export component NoteDialog inherits Rectangle {
             spacing: 12px;
 
             Text {
-                text: "Add note";
+                text: @tr("Add note");
                 font-size: 18pt;
                 font-weight: 700;
                 color: Theme.current.foreground;
@@ -108,7 +108,7 @@ export component NoteDialog inherits Rectangle {
                     horizontal-stretch: 0;
 
                     Text {
-                        text: "Cancel";
+                        text: @tr("Cancel");
                         color: Theme.current.foreground;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -117,7 +117,7 @@ export component NoteDialog inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Cancel";
+                        accessible-label: @tr("Cancel");
                         clicked => { root.cancel(); }
                     }
                 }
@@ -130,7 +130,7 @@ export component NoteDialog inherits Rectangle {
                     horizontal-stretch: 0;
 
                     Text {
-                        text: "Save";
+                        text: @tr("Save");
                         color: white;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -139,7 +139,7 @@ export component NoteDialog inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Save";
+                        accessible-label: @tr("Save");
                         clicked => { root.save(note-input.text); }
                     }
                 }
@@ -172,14 +172,14 @@ export component MetadataDialog inherits Rectangle {
             spacing: 12px;
 
             Text {
-                text: "Edit book";
+                text: @tr("Edit book");
                 font-size: 18pt;
                 font-weight: 700;
                 color: Theme.current.foreground;
             }
 
             Text {
-                text: "Title";
+                text: @tr("Title");
                 font-size: 12pt;
                 color: Theme.current.foreground;
                 opacity: 0.7;
@@ -194,7 +194,7 @@ export component MetadataDialog inherits Rectangle {
             }
 
             Text {
-                text: "Author";
+                text: @tr("Author");
                 font-size: 12pt;
                 color: Theme.current.foreground;
                 opacity: 0.7;
@@ -220,7 +220,7 @@ export component MetadataDialog inherits Rectangle {
                     horizontal-stretch: 0;
 
                     Text {
-                        text: "Cancel";
+                        text: @tr("Cancel");
                         color: Theme.current.foreground;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -229,7 +229,7 @@ export component MetadataDialog inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Cancel";
+                        accessible-label: @tr("Cancel");
                         clicked => { root.cancel(); }
                     }
                 }
@@ -242,7 +242,7 @@ export component MetadataDialog inherits Rectangle {
                     horizontal-stretch: 0;
 
                     Text {
-                        text: "Save";
+                        text: @tr("Save");
                         color: white;
                         font-weight: 600;
                         horizontal-alignment: center;
@@ -251,7 +251,7 @@ export component MetadataDialog inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Save";
+                        accessible-label: @tr("Save");
                         clicked => {
                             root.save(title-input.text, author-input.text);
                         }

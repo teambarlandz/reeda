@@ -122,14 +122,22 @@
 
 ## ADR-011 · i18n via custom lightweight catalogs (no gettext-rs in v1)
 
-- **Status:** Accepted
+- **Status:** Superseded (M7c)
 - **Context:** Full gettext infrastructure is overkill pre-v1.1; we still need
   plurals + RTL-readiness now.
-- **Decision:** Embedded catalog format (JSON/XLIFF-like) + plural rule
-  helpers in `reeda-ui::i18n`; migrate to `gettext`-style catalogs or
+- **Decision (original):** Embedded catalog format (JSON/XLIFF-like) + plural
+  rule helpers in `reeda-ui::i18n`; migrate to `gettext`-style catalogs or
   `fluent` when languages expand (LOCALIZATION.md).
-- **Consequences:** Simple; migration path documented. Revisit at first
-  non-English language.
+- **M7c superseding decision:** Adopted Slint's **native localization**
+  instead of a hand-rolled catalog. UI strings are wrapped in Slint's
+  `@tr("…")` (msgid = English text directly, no key indirection), compiled
+  into the generated Rust via `slint-build` `with_bundled_translations()`
+  from gettext `.po` files (`translations/<lang>/LC_MESSAGES/reeda-ui.po`),
+  with runtime locale auto-detection and plural-rule support built into
+  Slint 1.17. No custom i18n crate or key-lookup code is shipped.
+- **Consequences:** Zero custom catalog code to maintain; new languages are
+  just a new `.po` file plus a rebuild. Trade-off: catalog format and
+  plural/RTL behavior are bound to the Slint version (pinned via Cargo.lock).
 
 ---
 

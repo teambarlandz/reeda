@@ -279,7 +279,20 @@ PDFs, text extraction for TTS (TTS-07).
   - `accessible-role: button` + labels on all 54 interactive elements
     (9 Slint screens); backdrop-dismiss/page-turn hit zones unexposed
   - Docs: CHANGELOG updated; TalkBack device verification still in M7g
-- [ ] **M7c** Localization framework + English first, plurals, RTL-ready
+- [x] **M7c** Localization framework + English first, plurals, RTL-ready:
+  - Slint's native localization: 122 UI strings wrapped in `@tr("…")` across
+    the 9 Slint screens (msgid = English text, no key indirection)
+  - `build.rs` uses `compile_with_config` with `with_bundled_translations`
+    + `with_default_translation_context(None)`; `bundle-translations`
+    feature embeds `_SLINT_TRANSLATED_STRINGS` + `set_bundled_languages`
+    in the generated component
+  - Catalogs: `translations/en/LC_MESSAGES/reeda-ui.po` (identity source of
+    truth) + `translations/en-GB/LC_MESSAGES/reeda-ui.po` (colour spelling);
+    runtime auto-selects from system locale (exact > base > default),
+    `select_bundled_translation` for override; plural rules via PO
+    `Plural-Forms` headers; RTL-ready via Slint mirroring
+  - Supersedes ADR-011 (custom JSON catalogs); LOCALIZATION.md rewritten,
+    CHANGELOG updated; desktop smoke green
 - [ ] **M7d** Performance pass vs budgets (PERFORMANCE.md)
 - [ ] **M7e** Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
 - [ ] **M7f** Play Store assets: icon, screenshots, store listing, privacy policy

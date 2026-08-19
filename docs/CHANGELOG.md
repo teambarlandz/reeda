@@ -8,6 +8,16 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 ### Added
 
+- **M7c localization framework:** all 122 user-facing strings across the 9
+  Slint screens are wrapped in Slint's native `@tr("…")` (msgid = English
+  text) and bundled via gettext catalogs
+  (`crates/reeda-ui/translations/<lang>/LC_MESSAGES/reeda-ui.po`) using
+  `slint_build::compile_with_config().with_bundled_translations(...)`.
+  Ships `en` (identity source of truth) and `en-GB` ("colour" spelling
+  variant). Runtime auto-selects from the system locale (exact > base
+  language > default), with `slint::select_bundled_translation` as a manual
+  override; plural rules and RTL mirroring come from Slint 1.17. Replaces
+  the draft custom-JSON-catalog design (ADR-011, LOCALIZATION.md).
 - **M7b accessibility pass:** `accessible-role: button` + meaningful
   `accessible-label` on all 54 interactive elements across the 9 Slint
   screens (back, theme, search, narration, highlight, bookmark, note,

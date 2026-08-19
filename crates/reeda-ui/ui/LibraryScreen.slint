@@ -29,7 +29,7 @@ export component LibraryScreen inherits Rectangle {
                 alignment: space-between;
 
                 Text {
-                    text: "Reeda";
+                    text: @tr("Reeda");
                     font-size: 20pt;
                     font-weight: 700;
                     color: Theme.current.foreground;
@@ -55,7 +55,7 @@ export component LibraryScreen inherits Rectangle {
                         border-radius: 18px;
 
                         Text {
-                            text: "🔍";
+                            text: @tr("🔍");
                             font-size: 16pt;
                             color: Theme.current.foreground;
                             horizontal-alignment: center;
@@ -64,7 +64,7 @@ export component LibraryScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Search";
+                            accessible-label: @tr("Search");
                             clicked => { root.search-requested(); }
                         }
                     }
@@ -77,7 +77,7 @@ export component LibraryScreen inherits Rectangle {
                         border-radius: 18px;
 
                         Text {
-                            text: "⚙";
+                            text: @tr("⚙");
                             font-size: 16pt;
                             color: Theme.current.foreground;
                             horizontal-alignment: center;
@@ -86,7 +86,7 @@ export component LibraryScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Settings";
+                            accessible-label: @tr("Settings");
                             clicked => { root.settings-requested(); }
                         }
                     }
@@ -106,7 +106,7 @@ export component LibraryScreen inherits Rectangle {
                 horizontal-stretch: 0;
 
                 Text {
-                    text: "R";
+                    text: @tr("R");
                     font-size: 64pt;
                     font-weight: 900;
                     color: Theme.current.accent;
@@ -116,7 +116,7 @@ export component LibraryScreen inherits Rectangle {
             }
 
             Text {
-                text: "Your library is empty";
+                text: @tr("Your library is empty");
                 font-size: 20pt;
                 font-weight: 600;
                 color: Theme.current.foreground;
@@ -124,7 +124,7 @@ export component LibraryScreen inherits Rectangle {
             }
 
             Text {
-                text: "Import EPUB or PDF books to get started.\nSupported formats: .epub, .pdf";
+                text: @tr("Import EPUB or PDF books to get started.\nSupported formats: .epub, .pdf");
                 font-size: 14pt;
                 color: Theme.current.foreground;
                 opacity: 0.6;
@@ -142,7 +142,7 @@ export component LibraryScreen inherits Rectangle {
                     alignment: center;
 
                     Text {
-                        text: "Import your first book";
+                        text: @tr("Import your first book");
                         color: white;
                         font-size: 16pt;
                         font-weight: 600;
@@ -151,7 +151,7 @@ export component LibraryScreen inherits Rectangle {
 
                 touch := TouchArea {
                     accessible-role: button;
-                    accessible-label: "Import your first book";
+                    accessible-label: @tr("Import your first book");
                     clicked => { root.import-requested(); }
                 }
             }

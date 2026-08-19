@@ -31,7 +31,7 @@ export component SettingsScreen inherits Rectangle {
                     horizontal-stretch: 0;
 
                     Text {
-                        text: "←";
+                        text: @tr("←");
                         font-size: 18pt;
                         color: Theme.current.foreground;
                         horizontal-alignment: center;
@@ -40,13 +40,13 @@ export component SettingsScreen inherits Rectangle {
 
                     TouchArea {
                         accessible-role: button;
-                        accessible-label: "Back";
+                        accessible-label: @tr("Back");
                         clicked => { root.back-pressed(); }
                     }
                 }
 
                 Text {
-                    text: "Settings";
+                    text: @tr("Settings");
                     font-size: 18pt;
                     font-weight: 700;
                     color: Theme.current.foreground;
@@ -69,7 +69,7 @@ export component SettingsScreen inherits Rectangle {
 
                 // ── Theme ────────────────────────────────────────────
                 Text {
-                    text: "Theme";
+                    text: @tr("Theme");
                     font-size: 14pt;
                     font-weight: 600;
                     color: Theme.current.foreground;
@@ -85,7 +85,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "Light";
+                            text: @tr("Light");
                             color: root.theme-index == 0 ? white : Theme.current.foreground;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -94,7 +94,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Light theme";
+                            accessible-label: @tr("Light theme");
                             clicked => { root.theme-selected(0); }
                         }
                     }
@@ -106,7 +106,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "Sepia";
+                            text: @tr("Sepia");
                             color: root.theme-index == 1 ? white : Theme.current.foreground;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -115,7 +115,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Sepia theme";
+                            accessible-label: @tr("Sepia theme");
                             clicked => { root.theme-selected(1); }
                         }
                     }
@@ -127,7 +127,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "Dark";
+                            text: @tr("Dark");
                             color: root.theme-index == 2 ? white : Theme.current.foreground;
                             font-weight: 600;
                             horizontal-alignment: center;
@@ -136,7 +136,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Dark theme";
+                            accessible-label: @tr("Dark theme");
                             clicked => { root.theme-selected(2); }
                         }
                     }
@@ -144,7 +144,7 @@ export component SettingsScreen inherits Rectangle {
 
                 // ── Font size ────────────────────────────────────────
                 Text {
-                    text: "Font size";
+                    text: @tr("Font size");
                     font-size: 14pt;
                     font-weight: 600;
                     color: Theme.current.foreground;
@@ -154,7 +154,7 @@ export component SettingsScreen inherits Rectangle {
                     alignment: space-between;
 
                     Text {
-                        text: "A";
+                        text: @tr("A");
                         font-size: 12pt;
                         color: Theme.current.foreground;
                         opacity: 0.6;
@@ -162,7 +162,7 @@ export component SettingsScreen inherits Rectangle {
                     }
 
                     Text {
-                        text: "A";
+                        text: @tr("A");
                         font-size: 24pt;
                         font-weight: 700;
                         color: Theme.current.foreground;
@@ -182,7 +182,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "−";
+                            text: @tr("−");
                             font-size: 20pt;
                             color: Theme.current.foreground;
                             horizontal-alignment: center;
@@ -191,7 +191,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Decrease font size";
+                            accessible-label: @tr("Decrease font size");
                             clicked => { root.font-size-changed(-1); }
                         }
                     }
@@ -204,7 +204,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "+";
+                            text: @tr("+");
                             font-size: 20pt;
                             color: Theme.current.foreground;
                             horizontal-alignment: center;
@@ -213,7 +213,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Increase font size";
+                            accessible-label: @tr("Increase font size");
                             clicked => { root.font-size-changed(1); }
                         }
                     }
@@ -221,7 +221,7 @@ export component SettingsScreen inherits Rectangle {
 
                 // ── Line height ──────────────────────────────────────
                 Text {
-                    text: "Line height";
+                    text: @tr("Line height");
                     font-size: 14pt;
                     font-weight: 600;
                     color: Theme.current.foreground;
@@ -239,7 +239,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "−";
+                            text: @tr("−");
                             font-size: 20pt;
                             color: Theme.current.foreground;
                             horizontal-alignment: center;
@@ -248,7 +248,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Decrease line height";
+                            accessible-label: @tr("Decrease line height");
                             clicked => { root.line-height-changed(-1); }
                         }
                     }
@@ -261,7 +261,7 @@ export component SettingsScreen inherits Rectangle {
                         border-radius: 8px;
 
                         Text {
-                            text: "+";
+                            text: @tr("+");
                             font-size: 20pt;
                             color: Theme.current.foreground;
                             horizontal-alignment: center;
@@ -270,7 +270,7 @@ export component SettingsScreen inherits Rectangle {
 
                         TouchArea {
                             accessible-role: button;
-                            accessible-label: "Increase line height";
+                            accessible-label: @tr("Increase line height");
                             clicked => { root.line-height-changed(1); }
                         }
                     }

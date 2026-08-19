@@ -1,0 +1,263 @@
+# Reeda UI - English (en) source catalog (identity; also the msgid source of truth).
+# Generated from @tr() strings in crates/reeda-ui/ui. Encoding: UTF-8.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "⏹"
+msgstr "⏹"
+
+msgid "−"
+msgstr "−"
+
+msgid "⏭"
+msgstr "⏭"
+
+msgid "⏮"
+msgstr "⏮"
+
+msgid "+"
+msgstr "+"
+
+msgid "<"
+msgstr "<"
+
+msgid "×"
+msgstr "×"
+
+msgid "≡"
+msgstr "≡"
+
+msgid "▲"
+msgstr "▲"
+
+msgid "▼"
+msgstr "▼"
+
+msgid "←"
+msgstr "←"
+
+msgid "…"
+msgstr "…"
+
+msgid "⚙"
+msgstr "⚙"
+
+msgid "A"
+msgstr "A"
+
+msgid "Add note"
+msgstr "Add note"
+
+msgid "Author"
+msgstr "Author"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Blue highlight color"
+msgstr "Blue highlight color"
+
+msgid "Bookmarks"
+msgstr "Bookmarks"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Close search"
+msgstr "Close search"
+
+msgid "Cycle narration speed"
+msgstr "Cycle narration speed"
+
+msgid "Dark"
+msgstr "Dark"
+
+msgid "Dark theme"
+msgstr "Dark theme"
+
+msgid "Decrease font size"
+msgstr "Decrease font size"
+
+msgid "Decrease line height"
+msgstr "Decrease line height"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Delete bookmark"
+msgstr "Delete bookmark"
+
+msgid "Edit book"
+msgstr "Edit book"
+
+msgid "Export"
+msgstr "Export"
+
+msgid "Font size"
+msgstr "Font size"
+
+msgid "Go"
+msgstr "Go"
+
+msgid "Go to page"
+msgstr "Go to page"
+
+msgid "Green highlight color"
+msgstr "Green highlight color"
+
+msgid "Highlight"
+msgstr "Highlight"
+
+msgid "Highlight options"
+msgstr "Highlight options"
+
+msgid "Import EPUB or PDF books to get started.\nSupported formats: .epub, .pdf"
+msgstr "Import EPUB or PDF books to get started.\nSupported formats: .epub, .pdf"
+
+msgid "Import your first book"
+msgstr "Import your first book"
+
+msgid "Increase font size"
+msgstr "Increase font size"
+
+msgid "Increase line height"
+msgstr "Increase line height"
+
+msgid "Jump to bookmark"
+msgstr "Jump to bookmark"
+
+msgid "Jump to note"
+msgstr "Jump to note"
+
+msgid "Jump to page"
+msgstr "Jump to page"
+
+msgid "Light"
+msgstr "Light"
+
+msgid "Light theme"
+msgstr "Light theme"
+
+msgid "Line height"
+msgstr "Line height"
+
+msgid "Next match"
+msgstr "Next match"
+
+msgid "No bookmarks yet"
+msgstr "No bookmarks yet"
+
+msgid "No highlights or notes yet"
+msgstr "No highlights or notes yet"
+
+msgid "No outline in this document"
+msgstr "No outline in this document"
+
+msgid "No results"
+msgstr "No results"
+
+msgid "Notes"
+msgstr "Notes"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Open book"
+msgstr "Open book"
+
+msgid "Open result"
+msgstr "Open result"
+
+msgid "Outline"
+msgstr "Outline"
+
+msgid "Phrases and words are matched across the whole library.\nTap a result to open it in the reader."
+msgstr "Phrases and words are matched across the whole library.\nTap a result to open it in the reader."
+
+msgid "Pink highlight color"
+msgstr "Pink highlight color"
+
+msgid "Play or pause"
+msgstr "Play or pause"
+
+msgid "Previous match"
+msgstr "Previous match"
+
+msgid "R"
+msgstr "R"
+
+msgid "Reeda"
+msgstr "Reeda"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Search inside all your books"
+msgstr "Search inside all your books"
+
+msgid "Select text in the reader and choose Highlight."
+msgstr "Select text in the reader and choose Highlight."
+
+msgid "Sepia"
+msgstr "Sepia"
+
+msgid "Sepia theme"
+msgstr "Sepia theme"
+
+msgid "Settings"
+msgstr "Settings"
+
+msgid "Skip back"
+msgstr "Skip back"
+
+msgid "Skip forward"
+msgstr "Skip forward"
+
+msgid "Stop"
+msgstr "Stop"
+
+msgid "Tap the ribbon icon in the reader top bar to bookmark a page."
+msgstr "Tap the ribbon icon in the reader top bar to bookmark a page."
+
+msgid "Theme"
+msgstr "Theme"
+
+msgid "Title"
+msgstr "Title"
+
+msgid "Toggle bookmark"
+msgstr "Toggle bookmark"
+
+msgid "Toggle outline"
+msgstr "Toggle outline"
+
+msgid "Toggle search"
+msgstr "Toggle search"
+
+msgid "Toggle zoom"
+msgstr "Toggle zoom"
+
+msgid "Try different words or check the spelling."
+msgstr "Try different words or check the spelling."
+
+msgid "Yellow highlight color"
+msgstr "Yellow highlight color"
+
+msgid "Your library is empty"
+msgstr "Your library is empty"
+
+msgid "Zoom in"
+msgstr "Zoom in"
+
+msgid "Zoom out"
+msgstr "Zoom out"
+
+msgid "🔍"
+msgstr "🔍"
+
+msgid "🔖"
+msgstr "🔖"
