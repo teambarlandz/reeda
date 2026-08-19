@@ -43,6 +43,8 @@ export component BookmarksScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Back";
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -132,12 +134,16 @@ export component BookmarksScreen inherits Rectangle {
                             vertical-alignment: center;
 
                             TouchArea {
+                                accessible-role: button;
+                                accessible-label: "Delete bookmark";
                                 clicked => { root.delete(entry.annotation-id); }
                             }
                         }
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Jump to bookmark";
                         clicked => { root.jump-to(entry.annotation-id); }
                     }
                 }

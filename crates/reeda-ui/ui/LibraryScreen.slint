@@ -63,6 +63,8 @@ export component LibraryScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Search";
                             clicked => { root.search-requested(); }
                         }
                     }
@@ -83,6 +85,8 @@ export component LibraryScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Settings";
                             clicked => { root.settings-requested(); }
                         }
                     }
@@ -146,6 +150,8 @@ export component LibraryScreen inherits Rectangle {
                 }
 
                 touch := TouchArea {
+                    accessible-role: button;
+                    accessible-label: "Import your first book";
                     clicked => { root.import-requested(); }
                 }
             }

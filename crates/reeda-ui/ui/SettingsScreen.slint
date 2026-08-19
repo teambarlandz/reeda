@@ -39,6 +39,8 @@ export component SettingsScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Back";
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -91,6 +93,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Light theme";
                             clicked => { root.theme-selected(0); }
                         }
                     }
@@ -110,6 +114,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Sepia theme";
                             clicked => { root.theme-selected(1); }
                         }
                     }
@@ -129,6 +135,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Dark theme";
                             clicked => { root.theme-selected(2); }
                         }
                     }
@@ -182,6 +190,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Decrease font size";
                             clicked => { root.font-size-changed(-1); }
                         }
                     }
@@ -202,6 +212,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Increase font size";
                             clicked => { root.font-size-changed(1); }
                         }
                     }
@@ -235,6 +247,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Decrease line height";
                             clicked => { root.line-height-changed(-1); }
                         }
                     }
@@ -255,6 +269,8 @@ export component SettingsScreen inherits Rectangle {
                         }
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Increase line height";
                             clicked => { root.line-height-changed(1); }
                         }
                     }

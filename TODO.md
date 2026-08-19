@@ -275,8 +275,11 @@ PDFs, text extraction for TTS (TTS-07).
   - Verified: reeda-pdf tests green without `PDFIUM_LIBRARY_PATH` (DLL
     beside test exe), packaged release exe smoke
   - Docs: PDF_SPEC §7, PLATFORM.md, RELEASE.md, CHANGELOG updated
-- [ ] **M7b** Accessibility pass (TalkBack labels, selection a11y, large fonts)
-- [ ] **M7c** Localization framework + English/Nigerian-English first, plurals, RTL-ready
+- [x] **M7b** Accessibility pass:
+  - `accessible-role: button` + labels on all 54 interactive elements
+    (9 Slint screens); backdrop-dismiss/page-turn hit zones unexposed
+  - Docs: CHANGELOG updated; TalkBack device verification still in M7g
+- [ ] **M7c** Localization framework + English first, plurals, RTL-ready
 - [ ] **M7d** Performance pass vs budgets (PERFORMANCE.md)
 - [ ] **M7e** Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
 - [ ] **M7f** Play Store assets: icon, screenshots, store listing, privacy policy

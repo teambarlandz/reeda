@@ -108,6 +108,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Back";
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -133,6 +135,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Toggle search";
                         clicked => { root.search-toggled(); }
                     }
                 }
@@ -150,6 +154,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Toggle outline";
                         clicked => { root.outline-open = !root.outline-open; }
                     }
                 }
@@ -167,6 +173,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Toggle bookmark";
                         clicked => { root.toggle-bookmark(); }
                     }
                 }
@@ -195,6 +203,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Close search";
                         clicked => { root.search-close(); }
                     }
                 }
@@ -238,6 +248,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Previous match";
                         clicked => { root.search-prev(); }
                     }
                 }
@@ -255,6 +267,8 @@ export component ReaderScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Next match";
                         clicked => { root.search-next(); }
                     }
                 }
@@ -347,6 +361,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Zoom out";
                             clicked => { root.pdf-zoom-by(-0.25); }
                         }
                     }
@@ -359,6 +375,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Toggle zoom";
                             clicked => { root.pdf-toggle-zoom(); }
                         }
                     }
@@ -370,6 +388,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Zoom in";
                             clicked => { root.pdf-zoom-by(0.25); }
                         }
                     }
@@ -387,6 +407,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Jump to page";
                             clicked => { pdf-open = true; }
                         }
                     }
@@ -446,6 +468,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Go";
                             clicked => {
                                 pdf-open = false;
                                 root.pdf-jumped(jump-input.text);
@@ -517,6 +541,8 @@ export component ReaderScreen inherits Rectangle {
                         }
 
                         if run.highlighted : TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Highlight options";
                             clicked => { root.highlight-tapped(run.annotation-id); }
                         }
                     }
@@ -574,6 +600,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Bookmarks";
                             clicked => { root.bookmarks-requested(); }
                         }
                     }
@@ -586,6 +614,8 @@ export component ReaderScreen inherits Rectangle {
                         vertical-alignment: center;
 
                         TouchArea {
+                            accessible-role: button;
+                            accessible-label: "Notes";
                             clicked => { root.notes-requested(); }
                         }
                     }
@@ -614,6 +644,8 @@ export component ReaderScreen inherits Rectangle {
                     vertical-alignment: center;
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Skip back";
                         clicked => { root.narration-skip-back(); }
                     }
                 }
@@ -625,6 +657,8 @@ export component ReaderScreen inherits Rectangle {
                     vertical-alignment: center;
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Play or pause";
                         clicked => { root.narration-play-pause(); }
                     }
                 }
@@ -636,6 +670,8 @@ export component ReaderScreen inherits Rectangle {
                     vertical-alignment: center;
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Stop";
                         clicked => { root.narration-stop(); }
                     }
                 }
@@ -647,6 +683,8 @@ export component ReaderScreen inherits Rectangle {
                     vertical-alignment: center;
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Skip forward";
                         clicked => { root.narration-skip-forward(); }
                     }
                 }
@@ -659,6 +697,8 @@ export component ReaderScreen inherits Rectangle {
                     vertical-alignment: center;
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Cycle narration speed";
                         clicked => { root.narration-speed-cycle(); }
                     }
                 }
@@ -697,6 +737,8 @@ export component ReaderScreen inherits Rectangle {
                     border-radius: 14px;
                     background: Theme.current.highlight-yellow;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Yellow highlight color";
                         clicked => { root.edit-color(0); }
                     }
                 }
@@ -706,6 +748,8 @@ export component ReaderScreen inherits Rectangle {
                     border-radius: 14px;
                     background: Theme.current.highlight-green;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Green highlight color";
                         clicked => { root.edit-color(1); }
                     }
                 }
@@ -715,6 +759,8 @@ export component ReaderScreen inherits Rectangle {
                     border-radius: 14px;
                     background: Theme.current.highlight-blue;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Blue highlight color";
                         clicked => { root.edit-color(2); }
                     }
                 }
@@ -724,6 +770,8 @@ export component ReaderScreen inherits Rectangle {
                     border-radius: 14px;
                     background: Theme.current.highlight-pink;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Pink highlight color";
                         clicked => { root.edit-color(3); }
                     }
                 }
@@ -737,6 +785,8 @@ export component ReaderScreen inherits Rectangle {
                     font-size: 11pt;
                     color: Theme.current.accent;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Add note";
                         clicked => { root.note-requested(); }
                     }
                 }
@@ -746,6 +796,8 @@ export component ReaderScreen inherits Rectangle {
                     font-size: 11pt;
                     color: Theme.current.error;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Delete";
                         clicked => { root.delete-highlight(); }
                     }
                 }
@@ -756,6 +808,8 @@ export component ReaderScreen inherits Rectangle {
                     color: Theme.current.foreground;
                     opacity: 0.7;
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Cancel";
                         clicked => { root.close-popover(); }
                     }
                 }
@@ -822,6 +876,8 @@ export component ReaderScreen inherits Rectangle {
                             }
 
                             TouchArea {
+                                accessible-role: button;
+                                accessible-label: "Jump to page";
                                 clicked => {
                                     root.outline-open = false;
                                     root.pdf-outline-jumped(item.page);

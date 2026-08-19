@@ -8,6 +8,11 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 ### Added
 
+- **M7b accessibility pass:** `accessible-role: button` + meaningful
+  `accessible-label` on all 54 interactive elements across the 9 Slint
+  screens (back, theme, search, narration, highlight, bookmark, note,
+  jump, zoom controls, dialogs); backdrop-dismiss and page-turn hit
+  zones intentionally left unexposed.
 - Project scaffolding: Cargo workspace with `reeda-core`, `reeda-epub`,
   `reeda-pdf`, `reeda-search`, `reeda-tts`, `reeda-ui` crates.
 - Full documentation set (see [TODO.md](../TODO.md)): PRD, architecture,

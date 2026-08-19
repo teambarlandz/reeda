@@ -49,6 +49,8 @@ export component ErrorDialog inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "OK";
                         clicked => { root.open = false; }
                     }
                 }
@@ -114,6 +116,8 @@ export component NoteDialog inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Cancel";
                         clicked => { root.cancel(); }
                     }
                 }
@@ -134,6 +138,8 @@ export component NoteDialog inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Save";
                         clicked => { root.save(note-input.text); }
                     }
                 }
@@ -222,6 +228,8 @@ export component MetadataDialog inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Cancel";
                         clicked => { root.cancel(); }
                     }
                 }
@@ -242,6 +250,8 @@ export component MetadataDialog inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Save";
                         clicked => {
                             root.save(title-input.text, author-input.text);
                         }

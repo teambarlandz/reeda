@@ -47,6 +47,8 @@ export component NotesScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Back";
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -73,6 +75,8 @@ export component NotesScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Export";
                         clicked => { root.export(); }
                     }
                 }
@@ -162,6 +166,8 @@ export component NotesScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Jump to note";
                         clicked => { root.jump-to(entry.annotation-id); }
                     }
                 }

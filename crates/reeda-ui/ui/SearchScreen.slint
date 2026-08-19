@@ -49,6 +49,8 @@ export component SearchScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Back";
                         clicked => { root.back-pressed(); }
                     }
                 }
@@ -172,6 +174,8 @@ export component SearchScreen inherits Rectangle {
                     }
 
                     TouchArea {
+                        accessible-role: button;
+                        accessible-label: "Open result";
                         clicked => {
                             root.hit-opened(hit.book-id, hit.cfi, hit.block-index, hit.char-offset, hit.term-len);
                         }

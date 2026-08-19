@@ -95,7 +95,7 @@ panel, night/sepia render filters; deferred P2 items tracked in TODO.md.
 ## M7 — Hardening & ship (3 weeks)
 
 - [ ] Accessibility pass (TalkBack labels, selection a11y, large fonts)
-- [ ] Localization framework + English/Nigerian-English first, plurals, RTL-ready
+- [ ] Localization framework + Standard UK/American English first, plurals, RTL-ready
 - [ ] Performance pass vs budgets (PERFORMANCE.md)
 - [ ] Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
 - [ ] Play Store assets: icon, screenshots, store listing, privacy policy
