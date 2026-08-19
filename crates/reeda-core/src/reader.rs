@@ -861,7 +861,13 @@ mod tests {
         };
         let pages = paginate_doc(&doc, &layout);
         let ann = test_highlight_annotation(&doc);
-        let lines = build_page_lines(&doc, &pages, 0, layout.chars_per_line(), &[ann.clone()]);
+        let lines = build_page_lines(
+            &doc,
+            &pages,
+            0,
+            layout.chars_per_line(),
+            std::slice::from_ref(&ann),
+        );
 
         let highlighted: Vec<&LineRun> = lines
             .iter()
@@ -940,7 +946,7 @@ mod tests {
         assert!(entries[0].is_highlight);
         assert_eq!(entries[0].color_index, 0);
         assert_eq!(entries[1].color_index, 2);
-        assert_eq!(entries[2].is_highlight, false);
+        assert!(!entries[2].is_highlight);
         assert_eq!(entries[2].note_text, "A standalone thought");
         assert_eq!(entries[0].annotation_id, ch1_hl.id.0.to_string());
     }
@@ -1018,8 +1024,13 @@ mod tests {
             let pages = paginate_doc(&doc, &layout);
             let mut text = String::new();
             for page_idx in 0..pages.pages.len() {
-                let lines =
-                    build_page_lines(&doc, &pages, page_idx, chars_per_line, &[ann.clone()]);
+                let lines = build_page_lines(
+                    &doc,
+                    &pages,
+                    page_idx,
+                    chars_per_line,
+                    std::slice::from_ref(&ann),
+                );
                 for line in lines {
                     for run in line {
                         if run.highlighted {

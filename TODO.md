@@ -235,7 +235,7 @@ on emulator/device as a follow-up.
   - Theme filters: night (luminance-preserving invert), sepia (warm
     curve) applied to RGBA; re-render on theme/zoom change
   - Tests: render page, verify pixel count, cache hit/miss, eviction
-- [ ] **M6.3** reeda-core — PDF import + open:
+- [x] **M6.3** reeda-core — PDF import + open:
   - `Command::ImportPdf { path }` / `Command::OpenPdf { book_id }` /
     `Command::PdfPage { page_index }`
   - PDF books stored in BookStore with metadata (title, page_count);

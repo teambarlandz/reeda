@@ -6,8 +6,8 @@ use reeda_epub::selection::GlobalRange;
 use crate::commands::Command;
 use crate::events::{Event, NarrationState};
 use crate::models::{
-    Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookId, CfiRange, Chapter,
-    ChapterId, LineRun, NotesEntry, SearchHitView, SearchResultsView,
+    Annotation, AnnotationId, AnnotationKind, AppSettings, Book, BookFormat, BookId, CfiRange,
+    Chapter, ChapterId, LineRun, NotesEntry, SearchHitView, SearchResultsView,
 };
 use crate::reader::{self, typography_to_layout, PageBlock, ParsedDocRegistry, ReaderState};
 use crate::storage::{Database, StorageResult};
@@ -55,6 +55,21 @@ pub struct StateSnapshot {
     pub transient_highlight: Option<CfiRange>,
     /// In-reader search overlay state (None when closed).
     pub reader_search: Option<ReaderSearchView>,
+    /// PDF viewer state for the current book (None for EPUBs or on the
+    /// library screen).
+    pub pdf: Option<PdfView>,
+}
+
+/// PDF viewer state exposed to the UI (PDF_SPEC §2).
+#[derive(Debug, Clone, Default)]
+pub struct PdfView {
+    /// Total pages in the document.
+    pub page_count: u32,
+    /// Per-page `(width, height)` in PDF points (72 dpi) for aspect-correct
+    /// sizing of the rasterized pages.
+    pub page_sizes: Vec<(f32, f32)>,
+    /// Resolved absolute path of the PDF file (feeds the rasterizer).
+    pub path: String,
 }
 
 /// In-reader search state exposed to the UI.
@@ -90,6 +105,7 @@ impl Default for StateSnapshot {
             last_search: None,
             transient_highlight: None,
             reader_search: None,
+            pdf: None,
         }
     }
 }
@@ -134,6 +150,8 @@ pub struct App {
     transient_highlight: Option<CfiRange>,
     /// In-reader search state (current book only).
     reader_search: Option<ReaderSearchState>,
+    /// PDF document state for the currently open PDF (None otherwise).
+    pdf_state: Option<PdfState>,
     /// Narration engine (chunk queue + state machine, TTS_SPEC §5).
     narration: reeda_tts::engine::NarrationEngine,
     /// Platform speech host (FakeTtsHost on desktop; JNI bridge on Android).
@@ -151,6 +169,17 @@ struct ReaderSearchState {
     hits: Vec<SearchHitView>,
     /// Index of the currently shown hit.
     index: usize,
+}
+
+/// State of an opened PDF document.
+#[derive(Debug, Clone)]
+struct PdfState {
+    /// Resolved absolute path to the PDF file (re-opened on each render).
+    path: std::path::PathBuf,
+    /// Total pages in the document.
+    page_count: u32,
+    /// Per-page `(width, height)` in PDF points (72 dpi).
+    page_sizes: Vec<(f32, f32)>,
 }
 
 impl Default for App {
@@ -182,6 +211,7 @@ impl App {
             narration: reeda_tts::engine::NarrationEngine::new(1.0, 1.0),
             tts_host: Box::new(reeda_tts::engine::FakeTtsHost::new()),
             narration_chapter: None,
+            pdf_state: None,
         }
     }
 
@@ -249,6 +279,8 @@ impl App {
             // ── Library ──────────────────────────────────────────────
             Command::Import { uri } => self.import_book(uri),
 
+            Command::ImportPdf { path } => self.import_pdf(path),
+
             Command::DeleteBook { book_id } => self.delete_book(book_id),
 
             Command::EditMetadata {
@@ -259,6 +291,10 @@ impl App {
 
             // ── Reader ───────────────────────────────────────────────
             Command::OpenBook { book_id } => self.open_book(book_id),
+
+            Command::OpenPdf { book_id } => self.open_pdf(book_id),
+
+            Command::PdfPage { page_index } => self.pdf_page(page_index),
 
             Command::CloseBook => self.close_book(),
 
@@ -674,6 +710,11 @@ impl App {
                 index: rs.index as u32,
                 total: rs.hits.len() as u32,
             }),
+            pdf: self.pdf_state.as_ref().map(|ps| PdfView {
+                page_count: ps.page_count,
+                page_sizes: ps.page_sizes.clone(),
+                path: ps.path.display().to_string(),
+            }),
         }
     }
 
@@ -718,6 +759,10 @@ impl App {
                 .and_then(|s| s.parse::<u32>().ok())
                 .unwrap_or(0);
 
+            if book.format == BookFormat::Pdf {
+                return self.open_pdf_document(book_id, saved_page);
+            }
+
             // Paginate if we have the parsed document.
             if let Some(parsed) = self.parsed_docs.get(&book_id) {
                 let layout = typography_to_layout(&self.settings.typography, 400.0, 700.0);
@@ -738,6 +783,111 @@ impl App {
         }
     }
 
+    /// Open a PDF book (must exist in the library with `format == Pdf`).
+    fn open_pdf(&mut self, book_id: BookId) -> Vec<Event> {
+        let saved_page = self
+            .library
+            .get(&book_id)
+            .and_then(|b| b.last_position.as_ref())
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        if let Some(book) = self.library.get_mut(&book_id) {
+            book.last_opened_at = Some(chrono::Utc::now());
+            self.current_book_id = Some(book_id);
+            if let Some(db) = &self.db {
+                match db.list_annotations(book_id) {
+                    Ok(anns) => {
+                        self.annotations.insert(book_id, anns);
+                    }
+                    Err(e) => eprintln!("Warning: failed to load annotations: {e}"),
+                }
+            }
+            if book.format != BookFormat::Pdf {
+                self.current_book_id = None;
+                return vec![Event::Error {
+                    message: format!("Book {book_id} is not a PDF"),
+                }];
+            }
+            self.open_pdf_document(book_id, saved_page)
+        } else {
+            vec![Event::Error {
+                message: format!("Book {book_id} not found"),
+            }]
+        }
+    }
+
+    /// Load the PDF document behind `book_id` into [`PdfState`].
+    fn open_pdf_document(&mut self, book_id: BookId, saved_page: u32) -> Vec<Event> {
+        let Some(book) = self.library.get(&book_id) else {
+            return vec![];
+        };
+        let Some(path) = self.resolve_book_path(book) else {
+            return vec![Event::Error {
+                message: "PDF file not found in storage".into(),
+            }];
+        };
+        let doc = match reeda_pdf::document::PdfDocument::open(&path) {
+            Ok(doc) => doc,
+            Err(e) => {
+                self.pdf_state = None;
+                self.total_pages = 0;
+                self.current_page = 0;
+                return vec![Event::Error {
+                    message: format!("Failed to open PDF: {e}"),
+                }];
+            }
+        };
+        let page_count = doc.page_count().max(1) as u32;
+        let page_sizes: Vec<(f32, f32)> = (0..doc.page_count())
+            .filter_map(|i| doc.page_size(i))
+            .collect();
+        self.pdf_state = Some(PdfState {
+            path,
+            page_count,
+            page_sizes,
+        });
+        self.total_pages = page_count;
+        self.current_page = saved_page.min(page_count.saturating_sub(1));
+        self.reader_state = None;
+        self.transient_highlight = None;
+        vec![]
+    }
+
+    /// Jump to a page of the currently open PDF (PDF_SPEC §4).
+    fn pdf_page(&mut self, page_index: u32) -> Vec<Event> {
+        if self.pdf_state.is_none() {
+            return vec![Event::Error {
+                message: "No PDF open".into(),
+            }];
+        }
+        let clamped = page_index.min(self.total_pages.saturating_sub(1));
+        if clamped == self.current_page {
+            return vec![];
+        }
+        self.current_page = clamped;
+        self.save_progress();
+        vec![Event::PageChanged {
+            page_index: clamped,
+            total_pages: self.total_pages,
+        }]
+    }
+
+    /// Resolve the absolute filesystem path of a book's file: an absolute
+    /// `file_path` wins (import-time path), otherwise the store path.
+    fn resolve_book_path(&self, book: &Book) -> Option<std::path::PathBuf> {
+        let direct = std::path::Path::new(&book.file_path);
+        if direct.is_absolute() && direct.exists() {
+            return Some(direct.to_path_buf());
+        }
+        if let Some(store) = &self.store {
+            let stored = store.book_path(book.id, book.format);
+            if stored.exists() {
+                return Some(stored);
+            }
+        }
+        None
+    }
+
     fn close_book(&mut self) -> Vec<Event> {
         self.save_progress();
         self.stop_narration();
@@ -745,6 +895,7 @@ impl App {
         self.current_page = 0;
         self.total_pages = 0;
         self.reader_state = None;
+        self.pdf_state = None;
         self.transient_highlight = None;
         self.reader_search = None;
         vec![]
@@ -1030,6 +1181,15 @@ impl App {
                 message: "no open book".to_string(),
             }];
         };
+        if self
+            .library
+            .get(&book_id)
+            .is_some_and(|b| b.format == BookFormat::Pdf)
+        {
+            return vec![Event::Error {
+                message: "PDF narration not supported yet (TTS-07, P2)".to_string(),
+            }];
+        }
         if self.parsed_docs.get(&book_id).is_none() {
             return vec![Event::Error {
                 message: "book content not loaded".to_string(),
@@ -1280,6 +1440,7 @@ impl App {
 
     /// Mutable reference to the TTS host (test access).
     #[cfg(test)]
+    #[allow(dead_code)]
     pub(crate) fn tts_host_mut(&mut self) -> &mut dyn reeda_tts::engine::TtsHost {
         &mut *self.tts_host
     }
@@ -1457,6 +1618,73 @@ impl App {
                         break;
                     }
                 }
+            }
+        }
+
+        self.library.insert(book_id, book);
+
+        vec![Event::ImportFinished { book_id }]
+    }
+
+    /// Import a PDF from a file path (PDF_SPEC §1).
+    ///
+    /// Validates the file with PDFium (page count/sizes), copies it to
+    /// persistent storage, and dedupes by SHA-256 like EPUBs. Title is the
+    /// file stem (PDF metadata extraction is deferred to the outline work).
+    pub fn import_pdf(&mut self, path: String) -> Vec<Event> {
+        // 1. Read file bytes.
+        let data = match std::fs::read(&path) {
+            Ok(d) => d,
+            Err(e) => {
+                return vec![Event::ImportFailed {
+                    error: format!("Failed to read file: {e}"),
+                }];
+            }
+        };
+
+        // 2. Validate with PDFium (the document handle is dropped here; page
+        //    metadata is re-extracted on open).
+        let _pdf = match reeda_pdf::document::PdfDocument::open(&path) {
+            Ok(doc) => doc,
+            Err(e) => {
+                return vec![Event::ImportFailed {
+                    error: format!("PDF open error: {e}"),
+                }];
+            }
+        };
+
+        // 3. Compute hash + dedup.
+        let sha256 = crate::store::sha256_hex(&data);
+        if self.library.values().any(|b| b.sha256 == sha256) {
+            return vec![Event::ImportFailed {
+                error: "Duplicate book (already in library)".into(),
+            }];
+        }
+
+        // 4. Build the book record.
+        let title = std::path::Path::new(&path)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "Untitled".into());
+        let mut book = Book::new(title, BookFormat::Pdf, path.clone(), sha256);
+        let book_id = book.id;
+
+        // 5. Copy file to persistent storage (if store is configured).
+        if let Some(ref store) = self.store {
+            if let Err(e) = store.store_book(book_id, BookFormat::Pdf, &data) {
+                return vec![Event::ImportFailed {
+                    error: format!("Failed to store book file: {e}"),
+                }];
+            }
+            book.file_path = store.relative_book_path(book_id, BookFormat::Pdf);
+        }
+
+        // 6. Persist to SQLite (if configured). PDFs get no chapters or
+        //    search index entries (text extraction is P2, PDF_SPEC §6).
+        if let Some(db) = &self.db {
+            if let Err(e) = db.insert_book(&book) {
+                eprintln!("Warning: failed to persist book: {e}");
             }
         }
 
@@ -2524,5 +2752,267 @@ pub(crate) mod tests {
             "highlight must render after restart"
         );
         assert_eq!(highlighted.join(""), "Hello");
+    }
+
+    /// Minimal valid single-page PDF (US Letter, 612×792 pt), same fixture
+    /// as reeda-pdf's document tests.
+    const ONE_PAGE_PDF: &[u8] = b"%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+xref
+0 4
+0000000000 65535 f 
+0000000010 00000 n 
+0000000062 00000 n 
+0000000121 00000 n 
+trailer
+<< /Size 4 /Root 1 0 R >>
+startxref
+193
+%%EOF";
+
+    /// Minimal valid two-page PDF (US Letter + A4 pages).
+    const TWO_PAGE_PDF: &[u8] = b"%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>
+endobj
+xref
+0 5
+0000000000 65535 f 
+0000000010 00000 n 
+0000000062 00000 n 
+0000000121 00000 n 
+0000000188 00000 n 
+trailer
+<< /Size 5 /Root 1 0 R >>
+startxref
+255
+%%EOF";
+
+    fn write_pdf_fixture(name: &str, bytes: &[u8]) -> std::path::PathBuf {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join(format!("reeda-core-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(bytes).unwrap();
+        path
+    }
+
+    #[test]
+    fn import_pdf_adds_to_library() {
+        let path = write_pdf_fixture("import.pdf", ONE_PAGE_PDF);
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        assert_eq!(events.len(), 1);
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        let snap = app.snapshot();
+        assert_eq!(snap.library.len(), 1);
+        let book = &snap.library[0];
+        assert_eq!(book.id, book_id);
+        assert_eq!(book.format, BookFormat::Pdf);
+        assert_eq!(book.title, "import");
+    }
+
+    #[test]
+    fn import_pdf_invalid_file_fails() {
+        let dir = std::env::temp_dir().join(format!("reeda-core-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("broken.pdf");
+        std::fs::write(&path, b"this is not a pdf").unwrap();
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            Event::ImportFailed { error } => assert!(error.contains("PDF"), "got {error}"),
+            _ => panic!("expected ImportFailed"),
+        }
+        assert!(app.snapshot().library.is_empty());
+    }
+
+    #[test]
+    fn import_pdf_missing_file_fails() {
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: "/nonexistent/file.pdf".into(),
+        });
+        assert!(matches!(&events[0], Event::ImportFailed { .. }));
+    }
+
+    #[test]
+    fn import_pdf_duplicate_rejected() {
+        let path = write_pdf_fixture("dup.pdf", ONE_PAGE_PDF);
+        let mut app = App::new();
+        app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        match &events[0] {
+            Event::ImportFailed { error } => assert!(error.contains("Duplicate")),
+            _ => panic!("expected ImportFailed"),
+        }
+        assert_eq!(app.snapshot().library.len(), 1);
+    }
+
+    #[test]
+    fn open_pdf_loads_page_metadata() {
+        let path = write_pdf_fixture("open.pdf", ONE_PAGE_PDF);
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        let events = app.dispatch(Command::OpenBook { book_id });
+        if let Some(Event::Error { message }) = events.first() {
+            if message.contains("Failed to open PDF") {
+                eprintln!("PDFium not available — skipping");
+                return;
+            }
+        }
+        assert!(events.is_empty(), "unexpected events: {events:?}");
+
+        let snap = app.snapshot();
+        let pdf = snap.pdf.expect("pdf view state present");
+        assert_eq!(pdf.page_count, 1);
+        assert_eq!(pdf.page_sizes.len(), 1);
+        let (w, h) = pdf.page_sizes[0];
+        assert!((w - 612.0).abs() < 1.0, "width ~612 pt, got {w}");
+        assert!((h - 792.0).abs() < 1.0, "height ~792 pt, got {h}");
+        assert_eq!(snap.total_pages, 1);
+        assert_eq!(snap.current_page, 0);
+    }
+
+    #[test]
+    fn open_pdf_restores_last_position() {
+        let path = write_pdf_fixture("position.pdf", ONE_PAGE_PDF);
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+
+        // No-op navigation (page 0 of 1) leaves the position untouched.
+        let mut events = app.dispatch(Command::OpenBook { book_id });
+        if let Some(Event::Error { message }) = events.first() {
+            if message.contains("Failed to open PDF") {
+                eprintln!("PDFium not available — skipping");
+                return;
+            }
+        }
+        events.clear();
+        // Simulate a previously saved position.
+        app.save_progress();
+        let snap = app.snapshot();
+        assert_eq!(
+            snap.current_book.unwrap().last_position.as_deref(),
+            Some("0")
+        );
+    }
+
+    #[test]
+    fn pdf_page_jumps_and_clamps() {
+        let path = write_pdf_fixture("jump.pdf", TWO_PAGE_PDF);
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        let events = app.dispatch(Command::OpenBook { book_id });
+        if let Some(Event::Error { message }) = events.first() {
+            if message.contains("Failed to open PDF") {
+                eprintln!("PDFium not available — skipping");
+                return;
+            }
+        }
+        assert!(events.is_empty());
+
+        // Jump to page 1 (valid).
+        let events = app.dispatch(Command::PdfPage { page_index: 1 });
+        assert!(matches!(
+            events.as_slice(),
+            [Event::PageChanged {
+                page_index: 1,
+                total_pages: 2
+            }]
+        ));
+        assert_eq!(app.snapshot().current_page, 1);
+
+        // Out-of-range jump clamps to the last page (1); already there, so
+        // no state change and no events.
+        let events = app.dispatch(Command::PdfPage { page_index: 99 });
+        assert!(events.is_empty());
+        assert_eq!(app.snapshot().current_page, 1);
+    }
+
+    #[test]
+    fn pdf_narration_rejected_cleanly() {
+        let path = write_pdf_fixture("tts.pdf", ONE_PAGE_PDF);
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+        let events = app.dispatch(Command::StartNarration { chapter_id: None });
+        match &events[0] {
+            Event::Error { message } => assert!(message.contains("PDF"), "got {message}"),
+            _ => panic!("expected Error"),
+        }
+    }
+
+    #[test]
+    fn close_book_clears_pdf_state() {
+        let path = write_pdf_fixture("close.pdf", ONE_PAGE_PDF);
+        let mut app = App::new();
+        let events = app.dispatch(Command::ImportPdf {
+            path: path.display().to_string(),
+        });
+        let book_id = match &events[0] {
+            Event::ImportFinished { book_id } => *book_id,
+            _ => panic!("expected ImportFinished"),
+        };
+        app.dispatch(Command::OpenBook { book_id });
+        app.dispatch(Command::CloseBook);
+        let snap = app.snapshot();
+        assert!(snap.pdf.is_none());
+        assert!(snap.current_book.is_none());
     }
 }

@@ -4560,6 +4560,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "reeda-epub",
+ "reeda-pdf",
  "reeda-search",
  "reeda-tts",
  "rusqlite",

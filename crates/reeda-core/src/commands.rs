@@ -12,6 +12,9 @@ pub enum Command {
     /// Import a book from a file URI (SAF picker result).
     Import { uri: String },
 
+    /// Import a PDF from a file path (SAF picker result, PDF_SPEC §1).
+    ImportPdf { path: String },
+
     /// Delete a book from the library (soft-delete + file cleanup).
     DeleteBook { book_id: BookId },
 
@@ -25,6 +28,15 @@ pub enum Command {
     // ── Reader ───────────────────────────────────────────────────────
     /// Open a book for reading.
     OpenBook { book_id: BookId },
+
+    /// Open a PDF book for reading (resolves the stored file, PDF_SPEC §2).
+    OpenPdf { book_id: BookId },
+
+    /// Jump to a specific page of the open PDF (PDF_SPEC §4).
+    PdfPage {
+        /// 0-based page index.
+        page_index: u32,
+    },
 
     /// Close the current book and return to the library.
     CloseBook,
