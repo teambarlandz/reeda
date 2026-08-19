@@ -314,5 +314,15 @@ PDFs, text extraction for TTS (TTS-07).
     into the manifest (fullBackupContent + dataExtractionRules)
   - Docs: DRM_SECURITY status → reviewed, PLATFORM §8 implemented
     (device verification still in M7g)
-- [ ] **M7f** Play Store assets: icon, screenshots, store listing, privacy policy
+- [x] **M7f** Play Store assets:
+  - Adaptive launcher icon (brand green + book glyph): vector drawable,
+    monochrome themed-icon, PNG mipmap fallbacks (48–192 px) — manifest
+    `@mipmap/ic_launcher` now resolves
+  - Store icon 512 px + feature graphic 1024×500 — `docs/store/`
+    (regenerate: `scripts/make_icons.ps1`)
+  - Listing draft (`docs/store/listing.md`): short/full description,
+    data-safety "no data collected", category/tags
+  - Privacy policy draft (`docs/store/privacy_policy.md`) — host + link
+    in Play listing + Settings → About before release
+  - Screenshots (2 phone + 1 tablet) deferred to M7g (device captures)
 - [ ] **M7g** Internal test → closed beta → open beta → production

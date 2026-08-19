@@ -98,7 +98,7 @@ panel, night/sepia render filters; deferred P2 items tracked in TODO.md.
 - [x] Localization framework + Standard UK/American English first, plurals, RTL-ready
 - [x] Performance pass vs budgets (PERFORMANCE.md)
 - [x] Security review (DRM_SECURITY.md), backup rules, crash reporting (opt-in)
-- [ ] Play Store assets: icon, screenshots, store listing, privacy policy
+- [x] Play Store assets: icon, screenshots, store listing, privacy policy
 - [ ] Internal test → closed beta → open beta → production
 
 **Exit:** v1.0.0 published on Google Play.

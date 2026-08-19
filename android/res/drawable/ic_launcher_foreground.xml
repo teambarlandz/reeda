@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reeda adaptive icon foreground: open-book glyph (brand green bg,
+     white pages). Safe zone 66/108 dp. Generated art, see scripts/make_icons.ps1. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M30,40 C30,35 37,33 44,33 L44,63 C37,63 30,65 30,70 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M78,40 C78,35 71,33 64,33 L64,63 C71,63 78,65 78,70 Z" />
+</vector>

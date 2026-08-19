@@ -8,6 +8,13 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 
 ### Added
 
+- **M7f Play Store assets:** adaptive launcher icon (brand green + open
+  book glyph; vector drawable + monochrome themed-icon variant + PNG
+  mipmap fallbacks), 512 px store icon + 1024×500 feature graphic
+  (regenerable via `scripts/make_icons.ps1`); store listing draft
+  (`docs/store/listing.md`); privacy policy draft
+  (`docs/store/privacy_policy.md`, zero-collection v1, hosted page before
+  release). Device screenshots deferred to M7g.
 - **M7e security review:** crash-reporting decision made (ADR OQ-2: none
   in v1, anonymous opt-in evaluated for v1.1); `cargo audit` CI job added
   (every push/PR + weekly schedule, fails on `high`); clippy
