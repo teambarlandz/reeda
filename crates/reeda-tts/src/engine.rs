@@ -51,6 +51,28 @@ pub enum HostEvent {
         /// Engine-assigned utterance id.
         utterance_id: u64,
     },
+    /// A media-control action from the Android notification / lock screen
+    /// (docs/TTS_SPEC.md §2), dispatched via the NarrationService.
+    Control(ControlAction),
+}
+
+/// Media-control actions (notification buttons, TTS_SPEC §2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ControlAction {
+    /// Resume playback.
+    Play,
+    /// Pause playback.
+    Pause,
+    /// Stop narration and tear down the foreground service.
+    Stop,
+    /// Jump to the previous chunk (chunk-level, per TTS_SPEC §4).
+    SkipBack,
+    /// Jump to the next chunk.
+    SkipForward,
+    /// Speech rate +0.1 (0.5–2.5, step 0.1, TTS_SPEC §4).
+    SpeedUp,
+    /// Speech rate −0.1.
+    SpeedDown,
 }
 
 /// Effects the engine emits back to the caller (core App).
@@ -364,7 +386,40 @@ impl NarrationEngine {
                 }
                 self.advance(host)
             }
+            HostEvent::Control(action) => {
+                match action {
+                    ControlAction::Play => self.resume(host),
+                    ControlAction::Pause => self.pause(host),
+                    ControlAction::Stop => self.stop(host),
+                    ControlAction::SkipBack => self.skip(host, -1),
+                    ControlAction::SkipForward => self.skip(host, 1),
+                    ControlAction::SpeedUp => self.set_rate(host, self.rate + 0.1),
+                    ControlAction::SpeedDown => self.set_rate(host, self.rate - 0.1),
+                }
+                None
+            }
         }
+    }
+
+    /// Move the narration cursor `delta` chunks and restart speech from
+    /// there (notification skip-back / skip-forward, TTS_SPEC §4). No-op
+    /// outside Speaking/Paused or at the ends of the chunk list.
+    fn skip(&mut self, host: &mut dyn TtsHost, delta: isize) {
+        if self.chunks.is_empty() {
+            return;
+        }
+        if !matches!(self.state, EngineState::Speaking | EngineState::Paused) {
+            return;
+        }
+        let target = (self.index as isize + delta).clamp(0, self.chunks.len() as isize - 1) as usize;
+        if target == self.index {
+            return;
+        }
+        self.index = target;
+        self.queue.clear();
+        self.consecutive_errors = 0;
+        let _ = host.stop();
+        let _ = self.start(host);
     }
 
     /// Move to the next chunk (or finish), refilling the prefetch queue.
@@ -383,6 +438,8 @@ impl NarrationEngine {
         }
         if self.queue.is_empty() {
             self.state = EngineState::Idle;
+            // Tear down the host side too (Android foreground service).
+            let _ = host.stop();
             return Some(EngineEffect::Finished);
         }
         self.index += 1;
@@ -555,5 +612,119 @@ mod tests {
         let effects = engine.poll(&mut host);
         assert!(effects.is_empty());
         assert_eq!(engine.state(), EngineState::Speaking);
+    }
+
+    #[test]
+    fn control_pause_resume_play_map_to_host_calls() {
+        let mut host = FakeTtsHost::new();
+        let mut engine = NarrationEngine::new(1.0, 1.0);
+        engine.load_chunks(vec![chunk(0, "one")]);
+        engine.start(&mut host).unwrap();
+
+        host.push_event(HostEvent::Control(ControlAction::Pause));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.state(), EngineState::Paused);
+        assert_eq!(host.pause_count(), 1);
+
+        host.push_event(HostEvent::Control(ControlAction::Play));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.state(), EngineState::Speaking);
+        assert_eq!(host.resume_count(), 1);
+    }
+
+    #[test]
+    fn control_stop_tears_down() {
+        let mut host = FakeTtsHost::new();
+        let mut engine = NarrationEngine::new(1.0, 1.0);
+        engine.load_chunks(vec![chunk(0, "one")]);
+        engine.start(&mut host).unwrap();
+
+        host.push_event(HostEvent::Control(ControlAction::Stop));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.state(), EngineState::Idle);
+        assert_eq!(host.stop_count(), 1);
+    }
+
+    #[test]
+    fn control_skip_forward_moves_to_next_chunk() {
+        let mut host = FakeTtsHost::new();
+        let mut engine = NarrationEngine::new(1.0, 1.0);
+        engine.load_chunks(vec![chunk(0, "one"), chunk(1, "two"), chunk(2, "three")]);
+        engine.start(&mut host).unwrap();
+
+        host.push_event(HostEvent::Control(ControlAction::SkipForward));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.progress(), (1, 3));
+        assert_eq!(engine.state(), EngineState::Speaking);
+        // The queue refills from the skipped index (chunk 1 spoken again,
+        // chunk 2 prefetched).
+        let last = host.spoken().last().map(|(_, t)| t.as_str());
+        assert_eq!(last, Some("three"));
+
+        // Skipping past the last chunk clamps to it.
+        host.push_event(HostEvent::Control(ControlAction::SkipForward));
+        host.push_event(HostEvent::Control(ControlAction::SkipForward));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.progress(), (2, 3));
+    }
+
+    #[test]
+    fn control_skip_back_moves_to_previous_chunk() {
+        let mut host = FakeTtsHost::new();
+        let mut engine = NarrationEngine::new(1.0, 1.0);
+        engine.load_chunks(vec![chunk(0, "one"), chunk(1, "two")]);
+        engine.start(&mut host).unwrap();
+
+        host.push_event(HostEvent::Control(ControlAction::SkipBack));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.progress(), (0, 2), "skip back at first chunk is a no-op");
+
+        host.push_event(HostEvent::Done { utterance_id: 1 });
+        engine.poll(&mut host);
+        assert_eq!(engine.progress(), (1, 2));
+
+        host.push_event(HostEvent::Control(ControlAction::SkipBack));
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.progress(), (0, 2));
+        let last = host.spoken().last().map(|(_, t)| t.as_str());
+        assert_eq!(last, Some("two"), "queue refills from the skipped-back index");
+    }
+
+    #[test]
+    fn control_speed_steps_rate_by_0_1_within_bounds() {
+        let mut host = FakeTtsHost::new();
+        let mut engine = NarrationEngine::new(1.0, 1.0);
+        engine.load_chunks(vec![chunk(0, "one")]);
+        engine.start(&mut host).unwrap();
+
+        for _ in 0..20 {
+            host.push_event(HostEvent::Control(ControlAction::SpeedUp));
+        }
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.rate(), 2.5);
+
+        for _ in 0..30 {
+            host.push_event(HostEvent::Control(ControlAction::SpeedDown));
+        }
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.rate(), 0.5);
+        assert_eq!(host.rate(), 0.5);
+    }
+
+    #[test]
+    fn control_in_idle_state_is_ignored() {
+        let mut host = FakeTtsHost::new();
+        let mut engine = NarrationEngine::new(1.0, 1.0);
+        for action in [
+            ControlAction::Play,
+            ControlAction::Pause,
+            ControlAction::SkipForward,
+            ControlAction::SkipBack,
+        ] {
+            host.push_event(HostEvent::Control(action));
+        }
+        assert!(engine.poll(&mut host).is_empty());
+        assert_eq!(engine.state(), EngineState::Idle);
+        assert_eq!(host.stop_count(), 0);
     }
 }

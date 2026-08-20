@@ -1,9 +1,8 @@
-﻿[package]
+[package]
 name = "reeda-search"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
- lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda full-text search: Tantivy index, querying, ranking (docs/SEARCH_SPEC.md)."
@@ -14,3 +13,6 @@ tantivy = "0.26.1"
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"

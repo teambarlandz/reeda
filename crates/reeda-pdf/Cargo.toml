@@ -1,9 +1,8 @@
-﻿[package]
+[package]
 name = "reeda-pdf"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
- lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda PDF engine: PDFium rasterization, outline, page cache (docs/PDF_SPEC.md)."
@@ -13,3 +12,6 @@ pdfium-render = { version = "0.9", default-features = false, features = ["thread
 
 [dev-dependencies]
 tempfile = "3"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"

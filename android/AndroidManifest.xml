@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Reeda Android manifest — used by cargo-apk (docs/PLATFORM.md §4).
+<!-- Reeda Android manifest — consumed by scripts/build_apk.ps1 (aapt2).
      Package id is provisional; final decision in M0 (docs/RELEASE.md §3). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.reeda.app">
@@ -21,9 +21,12 @@
         android:icon="@mipmap/ic_launcher">
 
         <activity
-            android:name="io.reeda.app.MainActivity"
+            android:name="android.app.NativeActivity"
             android:exported="true"
             android:configChanges="orientation|screenSize|keyboardHidden">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="reeda_ui" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

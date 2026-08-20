@@ -1,9 +1,8 @@
-﻿[package]
+[package]
 name = "reeda-core"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
- lints.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "Reeda app core: domain models, app state, command bus, services."
@@ -24,3 +23,6 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 [dev-dependencies]
 tempfile = "3"
 zip = "2"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"

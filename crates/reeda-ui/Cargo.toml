@@ -1,23 +1,33 @@
-﻿[package]
+[package]
 name = "reeda-ui"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
- lints.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Reeda Slint application frontend (Android target)."
+description = "Reeda Slint application frontend (desktop + Android)."
+
+[lib]
+# Android app entry needs a cdylib (android-activity NativeActivity loads
+# libreeda_ui.so); rlib keeps the workspace tests/desktop builds working.
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["platform-desktop"]
 platform-desktop = ["slint/backend-winit", "slint/renderer-femtovg"]
-platform-android = ["slint/backend-android-activity-06", "reeda-tts/platform-android", "dep:reeda-tts"]
+platform-android = ["slint/backend-android-activity-06", "reeda-tts/platform-android", "dep:reeda-tts", "dep:jni", "dep:ndk-context", "dep:android-activity"]
 
 [dependencies]
 reeda-core.workspace = true
 reeda-pdf = { path = "../reeda-pdf" }
 reeda-tts = { path = "../reeda-tts", optional = true }
 slint = "1.9"
+jni = { version = "0.21", optional = true }
+ndk-context = { version = "0.1", optional = true }
+android-activity = { version = "0.6", optional = true }
 
 [build-dependencies]
 slint-build = "1.9"
+
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"

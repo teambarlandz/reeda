@@ -9,9 +9,9 @@
 //! - The shim's `UtteranceProgressListener` fires on the binder thread and
 //!   invokes the exported native method [`jni_event_callback`], which pushes
 //!   into a process-wide queue drained by [`AndroidTtsHost::poll`].
-//! - Foreground service / audio focus / wake-lock are stubs on this side;
-//!   the manifest already declares the required permissions and the
-//!   `NarrationService` (device verification is a follow-up).
+//! - The narration foreground service (`NarrationService.java`, TTS_SPEC §2)
+//!   is started/stopped from the host; its notification actions come back
+//!   through [`jni_action_callback`] as `HostEvent::Control`.
 //!
 //! Feature-gated behind `platform-android`; the module is compile-checked in
 //! CI and on hosts (the `jni` crate is pure Rust).
@@ -23,7 +23,7 @@ use jni::objects::{GlobalRef, JClass, JObject, JValue};
 use jni::sys::{jint, jlong};
 use jni::{JNIEnv, JavaVM};
 
-use crate::engine::HostEvent;
+use crate::engine::{ControlAction, HostEvent};
 
 /// JNI callback event kinds — must match `TtsShim.java` constants.
 const EV_START: jint = 0;
@@ -31,8 +31,32 @@ const EV_RANGE: jint = 1;
 const EV_DONE: jint = 2;
 const EV_ERROR: jint = 3;
 
+/// NarrationService action ids — must match `NarrationService.java`.
+const ACT_PLAY: jint = 0;
+const ACT_PAUSE: jint = 1;
+const ACT_STOP: jint = 2;
+const ACT_SKIP_BACK: jint = 3;
+const ACT_SKIP_FORWARD: jint = 4;
+const ACT_SPEED_UP: jint = 5;
+const ACT_SPEED_DOWN: jint = 6;
+
 /// Binder-thread event queue (callbacks arrive on non-Rust threads).
 static EVENT_QUEUE: Mutex<VecDeque<HostEvent>> = Mutex::new(VecDeque::new());
+
+/// Media-control action → engine event (TTS_SPEC §2 notification buttons).
+fn control_action(action: jint) -> Option<HostEvent> {
+    let action = match action {
+        ACT_PLAY => ControlAction::Play,
+        ACT_PAUSE => ControlAction::Pause,
+        ACT_STOP => ControlAction::Stop,
+        ACT_SKIP_BACK => ControlAction::SkipBack,
+        ACT_SKIP_FORWARD => ControlAction::SkipForward,
+        ACT_SPEED_UP => ControlAction::SpeedUp,
+        ACT_SPEED_DOWN => ControlAction::SpeedDown,
+        _ => return None,
+    };
+    Some(HostEvent::Control(action))
+}
 
 /// Registered by the Java shim; called on binder threads.
 ///
@@ -72,16 +96,38 @@ pub extern "system" fn Java_io_reeda_app_TtsShim_onEvent(
     let _ = env.exception_clear();
 }
 
+/// Called by the foreground `NarrationService` when the user taps a
+/// notification / lock-screen action (play, pause, stop, skip, speed).
+///
+/// Symbol name must match `NarrationService.onAction`.
+#[no_mangle]
+pub extern "system" fn Java_io_reeda_app_NarrationService_onAction(
+    env: JNIEnv,
+    _class: JClass,
+    action: jint,
+) {
+    if let Some(event) = control_action(action) {
+        if let Ok(mut queue) = EVENT_QUEUE.lock() {
+            queue.push_back(event);
+        }
+    }
+    let _ = env.exception_clear();
+}
+
 /// JNI status code mirrored from `android.text.TextToSpeech`.
 const TTS_SUCCESS: jint = 0;
 
 /// A [`crate::engine::TtsHost`] backed by Android's `TextToSpeech`.
 ///
 /// Construct with [`AndroidTtsHost::new`] once the JVM is available (from
-/// the app process); it initializes the `TtsShim` singleton lazily.
+/// the app process); it initializes the `TtsShim` singleton lazily and
+/// retains the app context for the narration foreground service
+/// ([`AndroidTtsHost::start_service`] / [`AndroidTtsHost::stop_service`],
+/// TTS_SPEC §2).
 pub struct AndroidTtsHost {
     vm: JavaVM,
     shim: GlobalRef,
+    context: GlobalRef,
     rate: f32,
     pitch: f32,
     stopped: bool,
@@ -137,15 +183,46 @@ impl AndroidTtsHost {
         let shim = env
             .new_global_ref(instance)
             .map_err(|e| format!("AndroidTtsHost: global ref: {e}"))?;
+        let context = env
+            .new_global_ref(ctx_obj)
+            .map_err(|e| format!("AndroidTtsHost: context global ref: {e}"))?;
         drop(env);
 
         Ok(Self {
             vm,
             shim,
+            context,
             rate: 1.0,
             pitch: 1.0,
             stopped: false,
         })
+    }
+
+    /// Static `NarrationService.start(Context)` / `NarrationService.stop(Context)`.
+    fn service_call(&mut self, method: &str) -> Result<(), String> {
+        let mut env = self
+            .vm
+            .attach_current_thread()
+            .map_err(|e| format!("AndroidTtsHost: attach: {e}"))?;
+        env.call_static_method(
+            "io/reeda/app/NarrationService",
+            method,
+            "(Landroid/content/Context;)V",
+            &[JValue::Object(&self.context)],
+        )
+        .map_err(|e| format!("AndroidTtsHost: NarrationService.{method}: {e}"))?;
+        drop(env);
+        Ok(())
+    }
+
+    /// Bring up the narration foreground service (idempotent).
+    pub fn start_service(&mut self) -> Result<(), String> {
+        self.service_call("start")
+    }
+
+    /// Tear down the narration foreground service (idempotent).
+    pub fn stop_service(&mut self) -> Result<(), String> {
+        self.service_call("stop")
     }
 
     /// Call a shim method returning an `int` status.
@@ -191,6 +268,7 @@ impl std::fmt::Debug for AndroidTtsHost {
 
 impl crate::engine::TtsHost for AndroidTtsHost {
     fn speak(&mut self, utterance_id: u64, text: &str) -> Result<(), String> {
+        self.start_service()?;
         let mut env = self
             .vm
             .attach_current_thread()
@@ -217,7 +295,9 @@ impl crate::engine::TtsHost for AndroidTtsHost {
 
     fn stop(&mut self) -> Result<(), String> {
         self.stopped = true;
-        self.call_int("stop", "()I", &[])
+        let result = self.call_int("stop", "()I", &[]);
+        let _ = self.stop_service();
+        result
     }
 
     fn pause(&mut self) -> Result<(), String> {
@@ -249,6 +329,41 @@ impl crate::engine::TtsHost for AndroidTtsHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn control_action_maps_ids() {
+        use crate::engine::ControlAction;
+        assert_eq!(
+            control_action(ACT_PLAY),
+            Some(HostEvent::Control(ControlAction::Play))
+        );
+        assert_eq!(
+            control_action(ACT_PAUSE),
+            Some(HostEvent::Control(ControlAction::Pause))
+        );
+        assert_eq!(
+            control_action(ACT_STOP),
+            Some(HostEvent::Control(ControlAction::Stop))
+        );
+        assert_eq!(
+            control_action(ACT_SKIP_BACK),
+            Some(HostEvent::Control(ControlAction::SkipBack))
+        );
+        assert_eq!(
+            control_action(ACT_SKIP_FORWARD),
+            Some(HostEvent::Control(ControlAction::SkipForward))
+        );
+        assert_eq!(
+            control_action(ACT_SPEED_UP),
+            Some(HostEvent::Control(ControlAction::SpeedUp))
+        );
+        assert_eq!(
+            control_action(ACT_SPEED_DOWN),
+            Some(HostEvent::Control(ControlAction::SpeedDown))
+        );
+        assert_eq!(control_action(99), None);
+        assert_eq!(control_action(-1), None);
+    }
 
     #[test]
     fn drain_queue_preserves_order() {

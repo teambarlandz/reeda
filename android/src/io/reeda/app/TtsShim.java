@@ -1,6 +1,7 @@
 package io.reeda.app;
 
 import android.content.Context;
+import android.media.AudioAttributes;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
@@ -26,6 +27,10 @@ public class TtsShim implements TextToSpeech.OnInitListener {
     private TtsShim(Context context) {
         appContext = context.getApplicationContext();
         tts = new TextToSpeech(appContext, this);
+        tts.setAudioAttributes(new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build());
         tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
             @Override
             public void onStart(String utteranceId) {

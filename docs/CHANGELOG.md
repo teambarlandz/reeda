@@ -11,10 +11,33 @@ versioning follows [SemVer](https://semver.org/) (see RELEASE.md).
 - **Distribution decision (2026-08-19): v1.0.0 ships via GitHub Releases**
   (per-ABI APKs + sha256 + release notes). Google Play is no longer a v1
   target; Play-specific assets from M7f (`docs/store/`) are kept but
-  optional. ROADMAP/RELEASE/BUILD_CI/TODO updated; full handoff state in
-  AGENTS.md.
+  optional. ROADMAP/RELEASE/BUILD_CI/TODO updated.
 
 ### Added
+
+- **M7g Android app shell + APK pipeline:** `reeda-ui` now builds as a
+  cdylib with an `android_main` entry (`slint::android::init`) and runs the
+  same app logic as the desktop binary; Android data lives under
+  `context.getFilesDir()`; both JNI callbacks are pinned in the cdylib
+  export table. `scripts/build_apk.ps1` packages signed per-ABI release
+  APKs: cargo-ndk cdylib → javac + d8 → aapt2 link with the real manifest →
+  aapt add (libs + dex) → zipalign → apksigner (verified v2/v3).
+  `libpdfium.so` (non-v8, `chromium/7881`) per ABI in
+  `android/src/main/jniLibs`, hashes pinned in
+  `third_party/pdfium/SHA256SUMS`.
+- **M7g narration foreground service (TTS_SPEC §2):**
+  `NarrationService.java` — `mediaPlayback` foreground service with a media
+  notification (play/pause/stop/skip-back/skip-forward/speed actions →
+  PendingIntents → JNI → engine), audio focus (GAIN/LOSS/TRANSIENT/DUCK),
+  and a partial wake-lock; started/stopped by `AndroidTtsHost` with the
+  narration. Engine gained `HostEvent::Control` (chunk-level skip,
+  ±0.1 speed stepper 0.5–2.5×) and tears the host down on finish; TtsShim
+  sets USAGE_MEDIA/CONTENT_TYPE_SPEECH AudioAttributes.
+- **M7g lint fix:** `lints.workspace = true` was silently ignored by cargo
+  1.97 — replaced with explicit `[lints.clippy]`
+  (`undocumented_unsafe_blocks = deny`) per crate, verified to fire.
+  Release builds verified for arm64-v8a + x86_64 (220 tests green, clippy
+  clean).
 
 - **M7f Play Store assets:** adaptive launcher icon (brand green + open
   book glyph; vector drawable + monochrome themed-icon variant + PNG

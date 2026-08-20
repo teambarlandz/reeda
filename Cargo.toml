@@ -9,10 +9,6 @@ members = [
     "crates/reeda-ui",
 ]
 
-[workspace.lints.clippy]
-# Every unsafe block must carry a SAFETY comment (DRM_SECURITY.md §5).
-undocumented_unsafe_blocks = "deny"
-
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
