@@ -411,7 +411,8 @@ impl NarrationEngine {
         if !matches!(self.state, EngineState::Speaking | EngineState::Paused) {
             return;
         }
-        let target = (self.index as isize + delta).clamp(0, self.chunks.len() as isize - 1) as usize;
+        let target =
+            (self.index as isize + delta).clamp(0, self.chunks.len() as isize - 1) as usize;
         if target == self.index {
             return;
         }
@@ -677,7 +678,11 @@ mod tests {
 
         host.push_event(HostEvent::Control(ControlAction::SkipBack));
         assert!(engine.poll(&mut host).is_empty());
-        assert_eq!(engine.progress(), (0, 2), "skip back at first chunk is a no-op");
+        assert_eq!(
+            engine.progress(),
+            (0, 2),
+            "skip back at first chunk is a no-op"
+        );
 
         host.push_event(HostEvent::Done { utterance_id: 1 });
         engine.poll(&mut host);
@@ -687,7 +692,11 @@ mod tests {
         assert!(engine.poll(&mut host).is_empty());
         assert_eq!(engine.progress(), (0, 2));
         let last = host.spoken().last().map(|(_, t)| t.as_str());
-        assert_eq!(last, Some("two"), "queue refills from the skipped-back index");
+        assert_eq!(
+            last,
+            Some("two"),
+            "queue refills from the skipped-back index"
+        );
     }
 
     #[test]

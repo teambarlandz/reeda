@@ -1,9 +1,9 @@
 //! Document outline extraction (PDF_SPEC §2.2, M6.5).
 //!
 //! The PDF bookmarks tree is flattened into a pre-order list of
-//! [`OutlineItem`]s carrying the section title, nesting depth, and target
-//! page (when resolvable). Rendering and page navigation use the same
-//! PDFium session as [`crate::document`].
+//! [`crate::outline::OutlineItem`]s carrying the section title, nesting
+//! depth, and target page (when resolvable). Rendering and page navigation
+//! use the same PDFium session as [`crate::document`].
 
 use std::path::Path;
 

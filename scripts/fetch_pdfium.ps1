@@ -59,7 +59,9 @@ if (Test-Path $libPath) {
     exit 0
 }
 
-$tgzPath = Join-Path $env:TEMP "pdfium-$os-$arch.tgz"
+# $env:TEMP is null on Linux (PS Core); GetTempPath works everywhere.
+$tmpDir = [System.IO.Path]::GetTempPath()
+$tgzPath = Join-Path $tmpDir "pdfium-$os-$arch.tgz"
 Write-Host "Downloading $url"
 Invoke-WebRequest -Uri $url -OutFile $tgzPath -UseBasicParsing
 
@@ -75,7 +77,7 @@ if ($expectedSha256) {
 
 # The tgz contains build/<platform>/pdfium.dll etc. tar.gz has no built-in
 # Windows support; use tar (available since Windows 10 1803).
-$extractDir = Join-Path $env:TEMP "pdfium-extract"
+$extractDir = Join-Path $tmpDir "pdfium-extract"
 Remove-Item -Recurse -Force $extractDir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
 tar -xzf $tgzPath -C $extractDir

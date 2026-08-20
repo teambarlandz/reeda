@@ -1,77 +1,52 @@
-name: Build APK
+name: Android
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
 
+# APKs are built and signed locally (scripts/build_apk.ps1) and shipped via
+# GitHub Releases (docs/RELEASE.md); CI's job here is compile-checking the
+# Android targets so the JNI bridge / app shell cannot rot unnoticed.
 jobs:
-  build:
-    name: Build (${{ matrix.abi }})
+  check-android:
+    name: Android target compile check
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - abi: arm64-v8a
-            rust_target: aarch64-linux-android
-          - abi: x86_64
-            rust_target: x86_64-linux-android
-
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev libfreetype-dev libexpat1-dev
+
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust_target }}
+          targets: aarch64-linux-android,x86_64-linux-android
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Install Android NDK
+      - name: Install Android NDK + SDK packages
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
+          ndk-version: r27
+          sdk-packages: "platforms;android-35,build-tools;35.0.0"
 
-      - name: Install cargo-apk
-        run: cargo install cargo-apk cargo-ndk --locked
-
-      - name: Build debug APK (platform-android)
-        run: cargo apk build -p reeda-ui --no-default-features --features platform-android
-
-      - name: Collect artifacts
+      - name: Export NDK path for cargo-ndk
         run: |
-          mkdir -p artifacts
-          find target -name "*.apk" -exec cp {} artifacts/ \;
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | head -n1)" >> "$GITHUB_ENV"
 
-      - name: Generate checksums
-        working-directory: artifacts
-        run: sha256sum *.apk > sha256sums.txt
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: reeda-debug-${{ matrix.abi }}
-          path: artifacts/
-          retention-days: 30
-
-  tts-bridge:
-    name: TTS bridge compile check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install Android NDK
-        uses: android-actions/setup-android@v3
-        with:
-          accept-android-sdk-licenses: true
-
-      - name: Check JNI bridge for Android target
-        run: cargo check -p reeda-tts --no-default-features --features platform-android --target aarch64-linux-android
+      - name: Check TTS bridge + UI for Android targets
+        run: |
+          cargo ndk -t arm64-v8a -t x86_64 check -p reeda-tts --no-default-features --features platform-android
+          cargo ndk -t arm64-v8a -t x86_64 check -p reeda-ui --no-default-features --features platform-android
+        env:
+          ANDROID_PLATFORM: android-35
+          ANDROID_JAR: $ANDROID_SDK_ROOT/platforms/android-35/android.jar

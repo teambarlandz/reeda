@@ -1,8 +1,8 @@
 //! Page rasterization (PDF_SPEC §3).
 //!
 //! Pages are rendered to RGBA bitmaps at `scale × 96 dpi` pixel
-//! dimensions, capped at [`MAX_RENDER_DIMENSION`] pixels per axis.
-//! The theme filter is applied at render time.
+//! dimensions, capped at [`crate::render::MAX_RENDER_DIMENSION`] pixels per
+//! axis. The theme filter is applied at render time.
 
 use std::path::Path;
 

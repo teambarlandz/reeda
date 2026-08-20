@@ -29,8 +29,11 @@ static KEEP_TTS_JNI: unsafe extern "system" fn(
 /// Same as [`KEEP_TTS_JNI`], for the NarrationService action callback.
 #[used]
 #[cfg(feature = "platform-android")]
-static KEEP_SERVICE_JNI: unsafe extern "system" fn(jni::JNIEnv, jni::objects::JClass, jni::sys::jint) =
-    reeda_tts::android_bridge::Java_io_reeda_app_NarrationService_onAction;
+static KEEP_SERVICE_JNI: unsafe extern "system" fn(
+    jni::JNIEnv,
+    jni::objects::JClass,
+    jni::sys::jint,
+) = reeda_tts::android_bridge::Java_io_reeda_app_NarrationService_onAction;
 
 /// Absolute path to the app-private files directory
 /// (`context.getFilesDir().getAbsolutePath()`).
