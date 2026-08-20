@@ -18,7 +18,7 @@ jobs:
     name: Android target compile check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install system dependencies
         run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev libfreetype-dev libexpat1-dev
@@ -33,8 +33,7 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
-          ndk-version: r27
-          sdk-packages: "platforms;android-35,build-tools;35.0.0"
+          packages: "platforms;android-35,build-tools;35.0.0,ndk;27.0.12077973"
 
       - name: Export NDK path for cargo-ndk
         run: |
