@@ -45,7 +45,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev libfreetype-dev libexpat1-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace
+      - name: Fetch PDFium (pinned, sha256-verified)
+        run: pwsh scripts/fetch_pdfium.ps1
+      - name: Run workspace tests against real PDFium
+        run: cargo test --workspace
+        env:
+          PDFIUM_LIBRARY_PATH: ${{ github.workspace }}/third_party/pdfium/linux-x64/libpdfium.so
 
   test-pdf:
     name: PDF tests (real PDFium)
@@ -61,7 +66,7 @@ jobs:
       - name: Run PDF tests against real PDFium
         run: cargo test -p reeda-pdf
         env:
-          PDFIUM_LIBRARY_PATH: third_party/pdfium/linux-x64/libpdfium.so
+          PDFIUM_LIBRARY_PATH: ${{ github.workspace }}/third_party/pdfium/linux-x64/libpdfium.so
 
   doc:
     name: Docs

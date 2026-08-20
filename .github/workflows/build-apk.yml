@@ -39,6 +39,8 @@ jobs:
       - name: Export NDK path for cargo-ndk
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | head -n1)" >> "$GITHUB_ENV"
+          echo "ANDROID_PLATFORM=android-35" >> "$GITHUB_ENV"
+          echo "ANDROID_JAR=$ANDROID_SDK_ROOT/platforms/android-35/android.jar" >> "$GITHUB_ENV"
 
       - name: Install cargo-ndk
         run: cargo install cargo-ndk --locked
@@ -49,4 +51,3 @@ jobs:
           cargo ndk -t arm64-v8a -t x86_64 check -p reeda-ui --no-default-features --features platform-android
         env:
           ANDROID_PLATFORM: android-35
-          ANDROID_JAR: $ANDROID_SDK_ROOT/platforms/android-35/android.jar
