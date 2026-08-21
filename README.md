@@ -2,6 +2,8 @@
 
 **A book reader for Android — built 100% in Rust.**
 
+**Version 0.1.1** — Android crash fix release (event log + exception clearing + ndk_context init).
+
 Reeda is a mobile reading app in the spirit of Apple Books: import EPUB and PDF
 books, read them with beautiful typography, highlight and annotate, search your
 library, and have your books read aloud to you — all powered by a pure-Rust
