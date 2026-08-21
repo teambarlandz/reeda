@@ -50,3 +50,111 @@ jobs:
           cargo ndk -t arm64-v8a -t x86_64 check -p reeda-ui --no-default-features --features platform-android
         env:
           ANDROID_PLATFORM: android-35
+
+  apk:
+    name: Build signed debug APKs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libfontconfig1-dev libfreetype-dev libexpat1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Android NDK + SDK packages
+        uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          packages: "platforms;android-35 build-tools;35.0.0 ndk;27.0.12077973"
+
+      - name: Export Android env (parity with scripts/build_apk.ps1)
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/$(ls $ANDROID_SDK_ROOT/ndk | head -n1)" >> "$GITHUB_ENV"
+          echo "ANDROID_PLATFORM=android-35" >> "$GITHUB_ENV"
+          echo "ANDROID_JAR=$ANDROID_SDK_ROOT/platforms/android-35/android.jar" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+
+      # Linux port of scripts/build_apk.ps1: cdylib -> javac/d8 -> aapt2 ->
+      # zipalign -> apksigner (debug-signed). Produces installable APKs as
+      # workflow artifacts for on-device verification.
+      - name: Build APKs (arm64-v8a, x86_64)
+        run: |
+          set -euo pipefail
+          BUILD_TOOLS="$ANDROID_SDK_ROOT/build-tools/35.0.0"
+          ANDROID_JAR="$ANDROID_SDK_ROOT/platforms/android-35/android.jar"
+          ROOT="$PWD"
+          WORK="$RUNNER_TEMP/reeda-apk"
+          VERSION=$(grep -m1 '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          mkdir -p "$WORK" "$ROOT/dist"
+
+          for ABI in arm64-v8a x86_64; do
+            case "$ABI" in
+              arm64-v8a) TARGET=aarch64-linux-android ;;
+              x86_64)    TARGET=x86_64-linux-android ;;
+            esac
+
+            echo "== Building Rust cdylib ($TARGET) =="
+            cargo ndk -t "$ABI" -o "$WORK/ndk" build --release -p reeda-ui \
+              --no-default-features --features platform-android
+            SO="$WORK/ndk/$ABI/libreeda_ui.so"
+            test -f "$SO"
+
+            echo "== Compiling Java shim (javac + d8) =="
+            CLASSES="$WORK/classes"; rm -rf "$CLASSES"; mkdir -p "$CLASSES"
+            javac --release 11 -classpath "$ANDROID_JAR" -d "$CLASSES" \
+              android/src/io/reeda/app/*.java
+            DEX="$WORK/dex"; rm -rf "$DEX"; mkdir -p "$DEX"
+            "$BUILD_TOOLS/d8" --release --lib "$ANDROID_JAR" --min-api 26 \
+              --output "$DEX" "$CLASSES"/io/reeda/app/*.class
+
+            echo "== Packaging with aapt2 ($ABI) =="
+            RES_ZIP="$WORK/res.zip"
+            "$BUILD_TOOLS/aapt2" compile --dir android/res -o "$RES_ZIP"
+            UNALIGNED="$WORK/reeda-unaligned.apk"; rm -f "$UNALIGNED"
+            "$BUILD_TOOLS/aapt2" link -o "$UNALIGNED" \
+              --manifest android/AndroidManifest.xml -I "$ANDROID_JAR" \
+              --min-sdk-version 26 --target-sdk-version 35 \
+              --version-code 1 --version-name "$VERSION" \
+              --auto-add-overlay "$RES_ZIP"
+
+            STAGE="$WORK/stage"; rm -rf "$STAGE"
+            mkdir -p "$STAGE/lib/$ABI"
+            cp "$SO" "$STAGE/lib/$ABI/libreeda_ui.so"
+            cp "android/src/main/jniLibs/$ABI/libpdfium.so" "$STAGE/lib/$ABI/libpdfium.so"
+            cp "$DEX/classes.dex" "$STAGE/classes.dex"
+            ( cd "$STAGE" && "$BUILD_TOOLS/aapt" add "$UNALIGNED" \
+                "lib/$ABI/libreeda_ui.so" "lib/$ABI/libpdfium.so" classes.dex )
+
+            ALIGNED="$WORK/reeda-aligned.apk"
+            "$BUILD_TOOLS/zipalign" -f 4 "$UNALIGNED" "$ALIGNED"
+
+            KS="$WORK/debug.keystore"
+            if [ ! -f "$KS" ]; then
+              keytool -genkeypair -keystore "$KS" -alias reeda -keyalg RSA \
+                -keysize 2048 -validity 10000 -storepass reeda-debug \
+                -keypass reeda-debug -dname "CN=Reeda Debug, OU=Dev, O=Reeda, L=Unknown, ST=Unknown, C=ZZ"
+            fi
+            OUT="dist/reeda-$VERSION-$ABI.apk"; rm -f "$OUT"
+            "$BUILD_TOOLS/apksigner" sign --ks "$KS" --ks-key-alias reeda \
+              --ks-pass pass:reeda-debug --key-pass pass:reeda-debug \
+              --out "$OUT" "$ALIGNED"
+            sha256sum "$OUT"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reeda-apks
+          path: dist/*.apk
+          if-no-files-found: error
