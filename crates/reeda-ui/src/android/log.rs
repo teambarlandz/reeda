@@ -156,7 +156,10 @@ fn path_from_method(
     sig: &str,
     args: &[JValue],
 ) -> Option<String> {
-    let file = match env.call_method(context, method, sig, args).and_then(|v| v.l()) {
+    let file = match env
+        .call_method(context, method, sig, args)
+        .and_then(|v| v.l())
+    {
         Ok(f) => f,
         Err(_) => {
             let _ = env.exception_clear();
@@ -196,7 +199,10 @@ fn write_lines(paths: &LogPaths, lines: &[String]) {
 
 fn append(path: &PathBuf, s: &str) -> std::io::Result<()> {
     use std::io::Write;
-    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)?;
     f.write_all(s.as_bytes())
 }
 
@@ -238,7 +244,11 @@ fn export() {
         "io/reeda/app/LogExporter",
         "export",
         "(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;)V",
-        &[JValue::Object(&context), JValue::Object(&name), JValue::Object(&content)],
+        &[
+            JValue::Object(&context),
+            JValue::Object(&name),
+            JValue::Object(&content),
+        ],
     );
     let _ = env.exception_clear();
     drop(env);

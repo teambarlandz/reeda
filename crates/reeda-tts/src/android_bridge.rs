@@ -426,7 +426,7 @@ mod tests {
                 // the assertion permissive to stay useful in both environments.
                 let _ = host;
             }
-            Ok(Err(_e)) => {}  // clean Err (non-Android JNI availability)
+            Ok(Err(_e)) => {}   // clean Err (non-Android JNI availability)
             Err(_payload) => {} // host: ndk-context panic, as expected
         }
     }
