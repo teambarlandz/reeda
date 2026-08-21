@@ -14,7 +14,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["platform-desktop"]
-platform-desktop = ["slint/backend-winit", "slint/renderer-femtovg"]
+platform-desktop = ["slint/backend-winit", "slint/renderer-femtovg", "dep:rfd"]
 platform-android = ["slint/backend-android-activity-06", "reeda-tts/platform-android", "dep:reeda-tts", "dep:jni", "dep:ndk-context", "dep:android-activity"]
 
 [dependencies]
@@ -25,6 +25,7 @@ slint = "1.9"
 jni = { version = "0.21", optional = true }
 ndk-context = { version = "0.1", optional = true }
 android-activity = { version = "0.6", optional = true }
+rfd = { version = "0.13", optional = true }
 
 [build-dependencies]
 slint-build = "1.9"

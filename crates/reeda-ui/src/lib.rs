@@ -476,8 +476,48 @@ pub fn run() {
                 core.dispatch(reeda_core::Command::DeleteAnnotation { annotation_id });
             }
             let app = weak.unwrap();
+            app.set_show_bookmarks(false);
             let snap = core_cell.borrow().snapshot();
             update_ui(&app, &snap);
+        }
+    });
+
+    // ── Import file (PDF/EPUB) ────────────────────────────────────────
+    #[cfg(feature = "platform-desktop")]
+    app.on_import_requested({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move || {
+            if let Some(path) = rfd::FileDialog::new()
+                .add_filter("EPUB & PDF", &["epub", "pdf"])
+                .pick_file()
+            {
+                let path_str = path.to_string_lossy().to_string();
+                let events = if path_str.to_lowercase().ends_with(".pdf") {
+                    core_cell
+                        .borrow_mut()
+                        .dispatch(reeda_core::Command::ImportPdf { path: path_str })
+                } else {
+                    let epub_data = match std::fs::read(&path) {
+                        Ok(d) => d,
+                        Err(e) => {
+                            eprintln!("Failed to read {path_str}: {e}");
+                            return;
+                        }
+                    };
+                    core_cell
+                        .borrow_mut()
+                        .import_from_bytes(epub_data, path_str)
+                };
+                if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
+                    let _ = core_cell
+                        .borrow_mut()
+                        .dispatch(reeda_core::Command::OpenBook { book_id: *book_id });
+                }
+                let app = weak.unwrap();
+                let snap = core_cell.borrow().snapshot();
+                update_ui(&app, &snap);
+            }
         }
     });
 
