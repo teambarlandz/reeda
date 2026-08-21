@@ -114,6 +114,7 @@ export component AppRoot inherits Window {
     callback bookmark-delete(string);
     callback toggle-bookmark();
     callback import-requested();
+    callback open-book(string);
     callback metadata-requested(string);
     callback metadata-saved(string, string);
     callback metadata-cancelled();
@@ -150,8 +151,9 @@ export component AppRoot inherits Window {
         import-requested => { root.import-requested(); }
 
         book-opened(id) => {
-            root.show-library = false;
-            root.show-reader = true;
+            // Screen visibility is driven by the core snapshot in update_ui
+            // after OpenBook resolves (empty reader on failure is a bug).
+            root.open-book(id);
         }
 
         edit-requested(id) => {

@@ -79,11 +79,21 @@ pub fn run() {
         crate::android::log::trace("store open FAILED");
     }
 
+    // Restore persisted state (library + settings) from SQLite so books
+    // imported in earlier sessions reappear on the next launch.
+    if let Err(e) = core.load_books() {
+        eprintln!("Warning: failed to restore library: {e}");
+    }
+    if let Err(e) = core.load_settings_from_db() {
+        eprintln!("Warning: failed to restore settings: {e}");
+    }
+
     // If a file path is provided as CLI arg, import it and open.
     let args: Vec<String> = std::env::args().collect();
     if let Some(path) = args.get(1) {
         if path.to_lowercase().ends_with(".pdf") {
             let events = core.dispatch(reeda_core::Command::ImportPdf { path: path.clone() });
+            show_error_events(&app, &events);
             if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
                 let _ = core.dispatch(reeda_core::Command::OpenBook { book_id: *book_id });
             }
@@ -96,6 +106,7 @@ pub fn run() {
                 }
             };
             let events = core.import_from_bytes(epub_data, path.clone());
+            show_error_events(&app, &events);
             if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
                 let _ = core.dispatch(reeda_core::Command::OpenBook { book_id: *book_id });
             }
@@ -152,6 +163,27 @@ pub fn run() {
                 core.dispatch(reeda_core::Command::CloseBook);
             }
             let app = weak.unwrap();
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    // ── Open a book from the library grid ───────────────────────────
+    app.on_open_book({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |book_id: slint::SharedString| {
+            let events = {
+                let mut core = core_cell.borrow_mut();
+                match reeda_core::BookId::try_from(book_id.as_str()) {
+                    Ok(id) => core.dispatch(reeda_core::Command::OpenBook { book_id: id }),
+                    Err(_) => vec![reeda_core::Event::Error {
+                        message: format!("Invalid book id: {book_id}"),
+                    }],
+                }
+            };
+            let app = weak.unwrap();
+            show_error_events(&app, &events);
             let snap = core_cell.borrow().snapshot();
             update_ui(&app, &snap);
         }
@@ -483,15 +515,18 @@ pub fn run() {
     });
 
     // ── Import file (PDF/EPUB) ────────────────────────────────────────
-    #[cfg(feature = "platform-desktop")]
     app.on_import_requested({
         let weak = weak.clone();
-        let core_cell = core_cell.clone();
-        move || {
-            if let Some(path) = rfd::FileDialog::new()
-                .add_filter("EPUB & PDF", &["epub", "pdf"])
-                .pick_file()
-            {
+        #[cfg(feature = "platform-desktop")]
+        {
+            let core_cell = core_cell.clone();
+            move || {
+                let Some(path) = rfd::FileDialog::new()
+                    .add_filter("EPUB & PDF", &["epub", "pdf"])
+                    .pick_file()
+                else {
+                    return; // User cancelled the dialog.
+                };
                 let path_str = path.to_string_lossy().to_string();
                 let events = if path_str.to_lowercase().ends_with(".pdf") {
                     core_cell
@@ -509,6 +544,7 @@ pub fn run() {
                         .borrow_mut()
                         .import_from_bytes(epub_data, path_str)
                 };
+                show_error_events(&weak.unwrap(), &events);
                 if let Some(reeda_core::Event::ImportFinished { book_id }) = events.first() {
                     let _ = core_cell
                         .borrow_mut()
@@ -517,6 +553,18 @@ pub fn run() {
                 let app = weak.unwrap();
                 let snap = core_cell.borrow().snapshot();
                 update_ui(&app, &snap);
+            }
+        }
+        #[cfg(not(feature = "platform-desktop"))]
+        {
+            move || {
+                // File-picker integration lands with the Android storage
+                // Access Framework (SAF); be explicit instead of silent.
+                let app = weak.unwrap();
+                app.set_error_message(slint::SharedString::from(
+                    "Importing books is not supported on this platform yet.",
+                ));
+                app.set_error_open(true);
             }
         }
     });
@@ -587,11 +635,12 @@ pub fn run() {
                 if pending.borrow().as_deref() != Some(query.as_str()) {
                     return;
                 }
-                {
+                let events = {
                     let mut core = core_cell.borrow_mut();
-                    core.dispatch(reeda_core::Command::Search { query });
-                }
+                    core.dispatch(reeda_core::Command::Search { query })
+                };
                 let app = weak.unwrap();
+                show_error_events(&app, &events);
                 let snap = core_cell.borrow().snapshot();
                 update_ui(&app, &snap);
             });
@@ -652,11 +701,12 @@ pub fn run() {
                 if pending.borrow().as_deref() != Some(query.as_str()) {
                     return;
                 }
-                {
+                let events = {
                     let mut core = core_cell.borrow_mut();
-                    core.dispatch(reeda_core::Command::ReaderSearch { query });
-                }
+                    core.dispatch(reeda_core::Command::ReaderSearch { query })
+                };
                 let app = weak.unwrap();
+                show_error_events(&app, &events);
                 let snap = core_cell.borrow().snapshot();
                 update_ui(&app, &snap);
             });
@@ -896,14 +946,29 @@ pub fn run() {
         }
     });
 
-    // Apply the default theme.
-    theme::apply_theme(&app, reeda_core::Theme::Light);
+    // Apply the persisted theme (falls back to Light for a fresh install).
+    theme::apply_theme(&app, snap.settings.theme);
 
     #[cfg(feature = "platform-android")]
     crate::android::log::trace("event loop starting");
     app.run().unwrap();
     #[cfg(feature = "platform-android")]
     crate::android::log::trace("event loop ended");
+}
+
+/// Open the modal error dialog for every `Event::Error` / `Event::ImportFailed`
+/// in `events` (UI_UX.md §3: error dialog with cause). Other events are
+/// ignored here.
+fn show_error_events(app: &AppRoot, events: &[reeda_core::Event]) {
+    for event in events {
+        let message = match event {
+            reeda_core::Event::Error { message } => message,
+            reeda_core::Event::ImportFailed { error } => error,
+            _ => continue,
+        };
+        app.set_error_message(slint::SharedString::from(message.as_str()));
+        app.set_error_open(true);
+    }
 }
 
 /// Push a `StateSnapshot` into the Slint UI properties.

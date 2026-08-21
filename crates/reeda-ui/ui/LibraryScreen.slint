@@ -179,4 +179,30 @@ export component LibraryScreen inherits Rectangle {
             background: Theme.current.surface;
         }
     }
+
+    // Import FAB (UI_UX.md §3): bottom-right, always reachable so new
+    // books can be added regardless of library state.
+    fab := Rectangle {
+        width: 56px;
+        height: 56px;
+        x: parent.width - self.width - 16px;
+        y: parent.height - self.height - 72px;
+        border-radius: 28px;
+        background: Theme.current.accent;
+
+        Text {
+            text: @tr("+");
+            color: white;
+            font-size: 28pt;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        TouchArea {
+            accessible-role: button;
+            accessible-label: @tr("Import book");
+            clicked => { root.import-requested(); }
+        }
+    }
 }
