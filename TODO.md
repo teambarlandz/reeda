@@ -94,10 +94,40 @@
       launch ✓ → import dialog opens (empty-state CTA and populated-state
       FAB) ✓ → EPUB import round-trip ✓ → book open renders PDF page ✓ →
       persistence across restart ✓. 220 tests green.
-- [ ] 5.2b Android: machine lacks Android SDK/NDK (cargo-ndk 4.1.2 + JDK 17
-      present). Awaiting user decision: install SDK locally, or build via
-      CI, then sideload fresh arm64-v8a APK to verify the <3 s startup crash
-      fix (v0.1.1, commit b190508).
+- [x] 5.2b Android: CI now builds signed debug APKs (new `apk` job in
+      build-apk.yml, Linux port of scripts/build_apk.ps1). Fresh artifacts
+      verified green (run 32489811103) and downloaded to dist/:
+      reeda-0.1.1-arm64-v8a.apk + reeda-0.1.1-x86_64.apk.
+      ON-DEVICE STEP (user): UNINSTALL the old Reeda first — the v1.0.0
+      release APK was signed with a different debug key, so Android will
+      refuse an in-place update ("App not installed"). Then sideload the
+      arm64-v8a APK and confirm no <3 s startup crash.
 - [x] 5.3 Full test suite green (`cargo test --workspace`, 220/220).
-- [ ] 5.4 Final summary of changes + remaining risks — appended below when
-      session work completes.
+- [x] 5.4 Summary of changes + remaining risks:
+
+## 6. Session summary
+
+### Root causes found
+| Symptom | Cause | Fix |
+|---|---|---|
+| Windows Import button dead ("design only") | Exe built Aug 19 predated commit 43d439c that added the rfd file-dialog wiring — callback never registered | Rebuild from HEAD (verified: dialog opens) |
+| Book tap opened empty reader | AppRoot book-opened only flipped screens, never dispatched OpenBook | New open-book(string) callback → Command::OpenBook (verified: PDF renders) |
+| Library/settings lost every restart | run() never called load_books()/load_settings_from_db() | Wired at startup; persisted theme applied too (verified live) |
+| Errors invisible | Event::Error/ImportFailed discarded; ErrorDialog never opened | show_error_events() across import/search/open paths |
+| No way to add 2nd book | Import only reachable from empty-library state | Always-visible 56px FAB per UI_UX.md §3 (verified) |
+| Console window behind GUI | Default windows subsystem | windows_subsystem="windows" in release |
+| Phone crash <3 s | v1.0.0 GitHub release ships stale v0.1.0 APKs built BEFORE the v0.1.1 crash fix (b190508) | Fresh v0.1.1 APKs via new CI job; sideload to verify |
+
+### Architecture verdict
+The all-Rust structure already follows standard SE practice: reeda-ui
+(Slint frontend) ↔ reeda-core command bus (backend) with engines isolated
+in reeda-epub/reeda-pdf/reeda-search/reeda-tts and persistence behind
+BookStore/Database. All bugs were unwired UI-layer paths, not design flaws.
+
+### Remaining risks / open work
+- On-device confirmation of the Android startup fix still pending (user).
+- UI_UX-CONTEXT.md gaps tracked in §4: search input field, grid/list
+  toggle, Continue Reading hero, bottom tab bar, 36px top-bar icons below
+  the 48dp target, theme palette tokens vs Hygge/Steel/Gilded.
+- Tests require PDFIUM_LIBRARY_PATH=third_party/pdfium/win-x64/pdfium.dll
+  locally (CI sets it automatically).
