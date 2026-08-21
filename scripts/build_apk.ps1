@@ -21,6 +21,11 @@ if (-not $env:ANDROID_NDK_HOME) { throw "ANDROID_NDK_HOME not set" }
 if (-not $env:ANDROID_SDK_ROOT) { throw "ANDROID_SDK_ROOT not set" }
 if (-not $env:JAVA_HOME) { throw "JAVA_HOME not set" }
 
+# The slint android backend's build script resolves android.jar from these
+# (build.rs: "No Android platforms found" otherwise).
+if (-not $env:ANDROID_PLATFORM) { $env:ANDROID_PLATFORM = "android-35" }
+if (-not $env:ANDROID_JAR) { $env:ANDROID_JAR = "$env:ANDROID_SDK_ROOT\platforms\android-35\android.jar" }
+
 $root = Split-Path -Parent $PSScriptRoot
 $buildTools = "$env:ANDROID_SDK_ROOT\build-tools\35.0.0"
 $androidJar = "$env:ANDROID_SDK_ROOT\platforms\android-35\android.jar"

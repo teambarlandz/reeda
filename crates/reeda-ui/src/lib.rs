@@ -18,12 +18,21 @@ use slint::Model;
 #[cfg(target_os = "android")]
 #[no_mangle]
 fn android_main(app: slint::android::AndroidApp) {
-    let _ = slint::android::init(app);
+    crate::android::log::init();
+    crate::android::log::trace("android_main entered");
+    match slint::android::init(app) {
+        Ok(()) => crate::android::log::trace("slint android init ok"),
+        Err(e) => crate::android::log::trace(&format!("slint android init FAILED: {e}")),
+    }
     run();
 }
 
 pub fn run() {
+    #[cfg(feature = "platform-android")]
+    crate::android::log::trace("creating window");
     let app = AppRoot::new().unwrap();
+    #[cfg(feature = "platform-android")]
+    crate::android::log::trace("window created");
 
     // ── Create core App ─────────────────────────────────────────────
     let mut core = reeda_core::App::new();
@@ -34,8 +43,14 @@ pub fn run() {
     #[cfg(feature = "platform-android")]
     {
         match crate::android::create_tts_host() {
-            Ok(host) => core.set_tts_host(host),
-            Err(e) => eprintln!("TTS unavailable: {e} (narration disabled)"),
+            Ok(host) => {
+                core.set_tts_host(host);
+                crate::android::log::trace("tts host ready");
+            }
+            Err(e) => {
+                eprintln!("TTS unavailable: {e} (narration disabled)");
+                crate::android::log::trace(&format!("tts host FAILED: {e}"));
+            }
         }
     }
 
@@ -47,6 +62,8 @@ pub fn run() {
     let data_root = crate::android::data_dir();
     #[cfg(not(feature = "platform-android"))]
     let data_root = String::from("reeda_data");
+    #[cfg(feature = "platform-android")]
+    crate::android::log::trace(&format!("data root resolved: {data_root}"));
     if let Ok(store) = reeda_core::BookStore::new(&data_root) {
         if let Ok(db) = reeda_core::Database::open(store.root().join("reeda.sqlite")) {
             core.set_db(db);
@@ -55,6 +72,11 @@ pub fn run() {
             core.set_search(search);
         }
         core.set_store(store);
+        #[cfg(feature = "platform-android")]
+        crate::android::log::trace("store + db + search opened");
+    } else {
+        #[cfg(feature = "platform-android")]
+        crate::android::log::trace("store open FAILED");
     }
 
     // If a file path is provided as CLI arg, import it and open.
@@ -83,6 +105,8 @@ pub fn run() {
     // Push initial state into the Slint UI.
     let snap = core.snapshot();
     update_ui(&app, &snap);
+    #[cfg(feature = "platform-android")]
+    crate::android::log::trace("initial UI state pushed");
 
     // ── Wire callbacks ──────────────────────────────────────────────
     let weak = app.as_weak();
@@ -835,7 +859,11 @@ pub fn run() {
     // Apply the default theme.
     theme::apply_theme(&app, reeda_core::Theme::Light);
 
+    #[cfg(feature = "platform-android")]
+    crate::android::log::trace("event loop starting");
     app.run().unwrap();
+    #[cfg(feature = "platform-android")]
+    crate::android::log::trace("event loop ended");
 }
 
 /// Push a `StateSnapshot` into the Slint UI properties.

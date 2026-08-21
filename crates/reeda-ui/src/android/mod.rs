@@ -9,6 +9,9 @@
 use reeda_core::platform::android::AndroidPlatform;
 use reeda_core::platform::{Platform, PlatformResult};
 
+/// Startup event log (breadcrumbs + panic hook) — see `log.rs`.
+pub(crate) mod log;
+
 /// Keep the JNI callbacks exported by `reeda-tts` in the final cdylib.
 ///
 /// The JVM resolves `Java_io_reeda_app_*` symbols by name via `dlsym` on the
@@ -66,19 +69,31 @@ pub fn data_dir() -> String {
         .and_then(|v| v.l())
     {
         Ok(file) => file,
-        Err(_) => return String::from("reeda_data"),
+        Err(_) => {
+            // Clear the pending exception: a leaked one would poison every
+            // later JNI call on this thread (slint's backend panics on JNI
+            // errors, which aborts the process — see log.rs).
+            let _ = env.exception_clear();
+            return String::from("reeda_data");
+        }
     };
     let path = match env
         .call_method(&file, "getAbsolutePath", "()Ljava/lang/String;", &[])
         .and_then(|v| v.l())
     {
         Ok(path) => path,
-        Err(_) => return String::from("reeda_data"),
+        Err(_) => {
+            let _ = env.exception_clear();
+            return String::from("reeda_data");
+        }
     };
     let js = jni::objects::JString::from(path);
     let s: String = match env.get_string(&js) {
         Ok(s) => s.into(),
-        Err(_) => return String::from("reeda_data"),
+        Err(_) => {
+            let _ = env.exception_clear();
+            return String::from("reeda_data");
+        }
     };
     drop(env);
     s
@@ -89,7 +104,7 @@ pub fn data_dir() -> String {
 /// Opens `ACTION_OPEN_DOCUMENT` and returns the content URI on success.
 #[allow(dead_code)] // wired into the import flow in the platform milestone
 pub fn pick_file(mime_type: &str) -> PlatformResult<String> {
-    AndroidPlatform::default().pick_file(mime_type)
+    AndroidPlatform.pick_file(mime_type)
 }
 
 /// Read the URI from an incoming intent (share / open-with).
@@ -97,7 +112,7 @@ pub fn pick_file(mime_type: &str) -> PlatformResult<String> {
 /// Returns `None` if no intent data is available.
 #[allow(dead_code)] // wired into the import flow in the platform milestone
 pub fn get_intent_data() -> PlatformResult<Option<String>> {
-    AndroidPlatform::default().get_intent_data()
+    AndroidPlatform.get_intent_data()
 }
 
 /// Request a runtime permission from the user.
@@ -105,7 +120,7 @@ pub fn get_intent_data() -> PlatformResult<Option<String>> {
 /// Returns `true` if granted, `false` if denied.
 #[allow(dead_code)] // wired into the import flow in the platform milestone
 pub fn request_permission(permission: &str) -> PlatformResult<bool> {
-    AndroidPlatform::default().request_permission(permission)
+    AndroidPlatform.request_permission(permission)
 }
 
 /// Create the JNI-backed TTS host for the narration engine.

@@ -10,7 +10,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.97"
 authors = ["teambarlandz"]
@@ -28,4 +28,7 @@ reeda-core = { path = "crates/reeda-core" }
 lto = "thin"
 codegen-units = 1
 panic = "abort"
-strip = "symbols"
+# Keep symbol names (drop only debug info) so crash backtraces in the event
+# log / logcat carry function names instead of raw addresses (see
+# crates/reeda-ui/src/android/log.rs).
+strip = "debuginfo"
