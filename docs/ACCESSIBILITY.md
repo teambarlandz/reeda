@@ -12,7 +12,8 @@
 2. Reading is possible with: TalkBack on, 200 % font scale, high-contrast
    theme, and reduced motion.
 3. No information is conveyed by color alone.
-4. Touch targets ≥ 48 dp; tappable text highlighted separately.
+4. Touch targets: 24×24 px for action bars; 16×16 px for inline indicators;
+  tappable text highlighted separately.
 
 ## 2. TalkBack integration
 
@@ -23,8 +24,10 @@
   unit; page-turn actions = a11y actions ("next page", "previous page").
 - Selection: TalkBack "select word/paragraph" actions map to our selection
   engine (a11y action → CFI range); highlight popover elements labeled.
-- Chrome auto-hide: when TalkBack active, chrome stays visible (no
-  time-based hiding) — reduced-motion + predictability.
+- Chrome auto-hide: Reading overlays (header/scrubber) fade after 2.5 s of
+  tap/drag inactivity; Floating Action Hub dims to 30 % opacity after 4.5 s.
+  When TalkBack is active, chrome remains fully visible — auto-hide is
+  suspended for accessibility, restored after TalkBack session ends.
 - Progress bar: `progress` role + percentage announced on change.
 - TTS bar: play/pause/stop/speed announced; narration start announces
   chapter title.

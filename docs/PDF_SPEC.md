@@ -35,13 +35,17 @@
 
 ## 4. Viewport & gestures
 
-- v1: single-page continuous **vertical scroll** with pinch zoom
-  (0.25×–5×), double-tap zoom toggle (fit-width ↔ 100 %), fit-to-width
-  default.
-- Page transition: pages are fixed-size rectangles stacked vertically;
-  scroll offset maps to page index for the indicator/jump (PDF-03).
+- v1: adaptive reading mode — default continuous vertical scroll with pinch
+  zoom (0.25×–5×), double-tap zoom toggle (fit-width ↔ 100 %), fit-to-width
+  default; layout switches to single-pagepread mode with 3D page curl physics
+  and zero UI chrome when user taps center of viewport (per UI_UX-CONTEXT.md §3.2).
+- Page transition: pages are fixed-size rectangles stacked vertically in scroll
+  mode; in page-curl mode, transition uses dynamic 3D conical page curl shader
+  (wgpu/Skia) with dynamic displacement during drag gestures.
 - Page indicator overlay (bottom, auto-hide), jump dialog with page number.
-- Landscape: no reflow — PDF pages just fit width (aspect preserved).
+- Landscape: no reflow — PDF pages just fit width (aspect preserved); in
+  page-curl mode, landscape presents facing-page spread with 3D curl between
+  spreads.
 
 ## 5. Caching & memory (PDF-01 budgets)
 
