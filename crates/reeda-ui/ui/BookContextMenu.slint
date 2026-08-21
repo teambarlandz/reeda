@@ -1,0 +1,131 @@
+// BookContextMenu.slint — per-cover action menu (UI_UX-CONTEXT.md §3,
+// "Gestures & Context Menus"): popover on desktop (>= 600px), bottom sheet
+// on mobile. Actions: Open, Edit Metadata, Delete (confirm handled by the
+// caller via ConfirmDialog).
+
+import { Theme } from "./Theme.slint";
+
+export component BookContextMenu inherits Rectangle {
+    in property < string > book-title: "";
+    /// Bottom sheet when true (small viewports), floating popover otherwise.
+    in property < bool > sheet: true;
+    callback open-book();
+    callback edit-metadata();
+    callback delete-requested();
+    callback dismissed();
+
+    background: #00000044;
+    width: 100%;
+    height: 100%;
+
+    // Outside tap dismisses (declared first so the menu stays on top).
+    TouchArea {
+        accessible-role: button;
+        accessible-label: @tr("Close menu");
+        clicked => { root.dismissed(); }
+    }
+
+    Rectangle {
+        width: root.sheet ? min(parent.width - 32px, 340px) : 264px;
+        height: menu.preferred-height + 24px;
+        x: (parent.width - self.width) / 2;
+        y: root.sheet ? parent.height - self.height - 20px : 76px;
+        background: Theme.current.surface;
+        border-radius: 14px;
+
+        menu := VerticalLayout {
+            padding: 10px;
+            spacing: 2px;
+
+            Text {
+                text: root.book-title;
+                font-size: 12pt;
+                font-weight: 700;
+                color: Theme.current.foreground;
+                opacity: 0.6;
+                overflow: elide;
+                height: 28px;
+                vertical-alignment: center;
+            }
+
+            menu-item := Rectangle {
+                height: 44px;
+                border-radius: 8px;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+
+                    Text {
+                        text: @tr("Open");
+                        font-size: 13pt;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+                    }
+                }
+
+                TouchArea {
+                    accessible-role: button;
+                    accessible-label: @tr("Open");
+                    clicked => { root.open-book(); }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Theme.current.surface_variant;
+            }
+
+            Rectangle {
+                height: 44px;
+                border-radius: 8px;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+
+                    Text {
+                        text: @tr("Edit metadata");
+                        font-size: 13pt;
+                        color: Theme.current.foreground;
+                        vertical-alignment: center;
+                    }
+                }
+
+                TouchArea {
+                    accessible-role: button;
+                    accessible-label: @tr("Edit metadata");
+                    clicked => { root.edit-metadata(); }
+                }
+            }
+
+            Rectangle {
+                height: 1px;
+                background: Theme.current.surface_variant;
+            }
+
+            Rectangle {
+                height: 44px;
+                border-radius: 8px;
+
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+
+                    Text {
+                        text: @tr("Delete");
+                        font-size: 13pt;
+                        color: Theme.current.error;
+                        vertical-alignment: center;
+                    }
+                }
+
+                TouchArea {
+                    accessible-role: button;
+                    accessible-label: @tr("Delete");
+                    clicked => { root.delete-requested(); }
+                }
+            }
+        }
+    }
+}

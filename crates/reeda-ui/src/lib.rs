@@ -5,6 +5,9 @@
 #[cfg(feature = "platform-android")]
 mod android;
 
+#[cfg(not(feature = "platform-android"))]
+mod diag;
+
 mod theme;
 
 slint::include_modules!();
@@ -28,6 +31,9 @@ fn android_main(app: slint::android::AndroidApp) {
 }
 
 pub fn run() {
+    #[cfg(not(feature = "platform-android"))]
+    diag::init();
+
     #[cfg(feature = "platform-android")]
     crate::android::log::trace("creating window");
     let app = AppRoot::new().unwrap();
@@ -51,6 +57,18 @@ pub fn run() {
                 eprintln!("TTS unavailable: {e} (narration disabled)");
                 crate::android::log::trace(&format!("tts host FAILED: {e}"));
             }
+        }
+    }
+
+    // Desktop: swap in the platform-native TTS host (chunk-level narration;
+    // word-boundary Range events stay Android-only for now).
+    #[cfg(not(feature = "platform-android"))]
+    {
+        if let Some(host) = reeda_core::create_platform_tts_host() {
+            core.set_tts_host(host);
+            diag::log("TTS host ready");
+        } else {
+            diag::log("TTS unavailable (narration disabled)");
         }
     }
 
@@ -82,10 +100,10 @@ pub fn run() {
     // Restore persisted state (library + settings) from SQLite so books
     // imported in earlier sessions reappear on the next launch.
     if let Err(e) = core.load_books() {
-        eprintln!("Warning: failed to restore library: {e}");
+        diag::log(format!("Warning: failed to restore library: {e}"));
     }
     if let Err(e) = core.load_settings_from_db() {
-        eprintln!("Warning: failed to restore settings: {e}");
+        diag::log(format!("Warning: failed to restore settings: {e}"));
     }
 
     // If a file path is provided as CLI arg, import it and open.
@@ -177,6 +195,27 @@ pub fn run() {
                 let mut core = core_cell.borrow_mut();
                 match reeda_core::BookId::try_from(book_id.as_str()) {
                     Ok(id) => core.dispatch(reeda_core::Command::OpenBook { book_id: id }),
+                    Err(_) => vec![reeda_core::Event::Error {
+                        message: format!("Invalid book id: {book_id}"),
+                    }],
+                }
+            };
+            let app = weak.unwrap();
+            show_error_events(&app, &events);
+            let snap = core_cell.borrow().snapshot();
+            update_ui(&app, &snap);
+        }
+    });
+
+    // ── Delete a book from the library grid context menu ────────────
+    app.on_book_delete_confirmed({
+        let weak = weak.clone();
+        let core_cell = core_cell.clone();
+        move |book_id: slint::SharedString| {
+            let events = {
+                let mut core = core_cell.borrow_mut();
+                match reeda_core::BookId::try_from(book_id.as_str()) {
+                    Ok(id) => core.dispatch(reeda_core::Command::DeleteBook { book_id: id }),
                     Err(_) => vec![reeda_core::Event::Error {
                         message: format!("Invalid book id: {book_id}"),
                     }],
@@ -760,9 +799,16 @@ pub fn run() {
         let weak = weak.clone();
         let core_cell = core_cell.clone();
         move || {
+            // State machine per TTS_SPEC §4: start when idle, resume when
+            // paused, pause while speaking. (Previously the idle state fell
+            // through to PauseNarration — narration could never be started
+            // from the UI.)
             let command = match core_cell.borrow().snapshot().narration_state {
                 reeda_core::NarrationState::Paused => reeda_core::Command::ResumeNarration,
-                _ => reeda_core::Command::PauseNarration,
+                reeda_core::NarrationState::Speaking | reeda_core::NarrationState::Loading => {
+                    reeda_core::Command::PauseNarration
+                }
+                _ => reeda_core::Command::StartNarration { chapter_id: None },
             };
             {
                 let mut core = core_cell.borrow_mut();

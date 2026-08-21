@@ -17,5 +17,16 @@ reeda-epub = { path = "../reeda-epub" }
 jni = { version = "0.21", optional = true }
 ndk-context = { version = "0.1", optional = true }
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Foundation",
+    "Media_Playback",
+    "Media_SpeechSynthesis",
+    "Media_Core",
+    "Storage_Streams",
+    "Win32_System_Com",
+    "Win32_Foundation",
+]}
+
 [lints.clippy]
 undocumented_unsafe_blocks = "deny"

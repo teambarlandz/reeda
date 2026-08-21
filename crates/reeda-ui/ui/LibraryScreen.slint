@@ -3,17 +3,24 @@
 
 import { Theme } from "./Theme.slint";
 import { BookCard, BookInfo } from "./BookCard.slint";
+import { BookContextMenu } from "./BookContextMenu.slint";
 
 export component LibraryScreen inherits Rectangle {
     callback import-requested();
     callback book-opened(string);
     callback edit-requested(string);
+    callback delete-requested(string, string);
     callback settings-requested();
     callback search-requested();
 
     in property < bool > is-empty: true;
     in property < string > book-count-text: "0 books";
     in property < [BookInfo] > books;
+
+    // Per-cover context menu state (UI_UX-CONTEXT.md §3).
+    in-out property < string > context-id: "";
+    in-out property < string > context-title: "";
+    in-out property < bool > context-open: false;
 
     background: Theme.current.background;
 
@@ -168,7 +175,11 @@ export component LibraryScreen inherits Rectangle {
                 for book in root.books: BookCard {
                     book: book;
                     clicked(id) => { root.book-opened(id); }
-                    edit-requested(id) => { root.edit-requested(id); }
+                    menu-requested(id, title) => {
+                        root.context-id = id;
+                        root.context-title = title;
+                        root.context-open = true;
+                    }
                 }
             }
         }
@@ -204,5 +215,29 @@ export component LibraryScreen inherits Rectangle {
             accessible-label: @tr("Import book");
             clicked => { root.import-requested(); }
         }
+    }
+
+    // Per-cover context menu (UI_UX-CONTEXT.md §3): popover on desktop,
+    // bottom sheet below 600px. Declared last → topmost overlay.
+    if root.context-open : BookContextMenu {
+        book-title: root.context-title;
+        sheet: root.width < 600px;
+
+        open-book => {
+            root.context-open = false;
+            root.book-opened(root.context-id);
+        }
+
+        edit-metadata => {
+            root.context-open = false;
+            root.edit-requested(root.context-id);
+        }
+
+        delete-requested => {
+            root.context-open = false;
+            root.delete-requested(root.context-id, root.context-title);
+        }
+
+        dismissed => { root.context-open = false; }
     }
 }

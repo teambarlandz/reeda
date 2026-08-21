@@ -77,6 +77,12 @@
 
 ## 4. UI/UX alignment (docs/UI_UX.md + UI_UX-CONTEXT.md)
 
+- [ ] 4.0 Adopt UI_UX-CONTEXT.md §11 component hierarchy as one dedicated
+      pass (after 7B–7D): rename BookCard→BookGridContainer+BookCardItem,
+      merge Notes/Bookmarks→HighlightsScreen or justify split, extract
+      AdaptiveHeader/ReaderFooter/etc. as those features get built;
+      reconcile BookContextMenu.slint placement. File names are cosmetic
+      to Slint — batched to avoid mid-feature churn.
 - [ ] 4.1 Theme tokens match spec palettes (Hygge/Steel/Gilded) — verify or
       update Theme.slint; no raw hex outside tokens.
 - [ ] 4.2 Library screen vs spec §3.1/§5.1: FAB done (§3.2); remaining gaps:
@@ -131,3 +137,64 @@ BookStore/Database. All bugs were unwired UI-layer paths, not design flaws.
   the 48dp target, theme palette tokens vs Hygge/Steel/Gilded.
 - Tests require PDFIUM_LIBRARY_PATH=third_party/pdfium/win-x64/pdfium.dll
   locally (CI sets it automatically).
+
+## 7. Session 2 — Engine proof + missing core functions
+
+> User report: library shows books, but core functions are invisible — no
+> delete anywhere, TTS silent. Order: prove engine headless → wire dead
+> commands → real Windows TTS → diagnostics.
+
+### 7A. Headless engine proof (no UI changes)
+- [x] 7.1 Add crates/reeda-core/examples/engine_demo.rs: temp data root →
+      BookStore+Database+SearchService → import generated EPUB → paginate/
+      chapters → import real PDF (reuse target/release/reeda_data stored
+      book.pdf) → page sizes/outline → render_page(0) → PNG to dist/engine_demo/
+      → full-text search query → print summary table.
+      → PASSED: EPUB 3 chapters/2 pages, turns change content; PDF 1 page
+      A4 595x842pt; rasterized 794x1123 px PNG; search "zebra" → 10 hits.
+- [x] 7.2 Run live; verify PNGs non-trivial (byte size + pixel histogram).
+      → PNG decodes via System.Drawing; ~98% white / dark text pixels present.
+
+### 7B. Wire dead engine commands into UI
+- [x] 7.3 Delete book per UI_UX-CONTEXT.md §3 (Gestures & Context Menus):
+      ⋯ button opens adaptive context menu — popover when window-width
+      >= 600px, bottom sheet below (§6.1 pattern); actions Open / Edit
+      Metadata / Delete (Move-to-Shelf + Export Backup deferred: no engine
+      commands); Delete → ConfirmDialog → Command::DeleteBook. New
+      ui/BookContextMenu.slint (kebab-case file, PascalCase component,
+      Theme tokens only, text labels per §2.2).
+      NOTE: BookCard root TouchArea currently sits above the ⋯ button in
+      z-order — fix while touching this file.
+      → DONE + verified via UI automation: seeded EPUB → ⋯ opens bottom
+      sheet (<600px) → Delete → ConfirmDialog → library empty, store files
+      purged, deletion persists across restart.
+      ALSO FIXED: BookCard root TouchArea z-order was ABOVE the ⋯ button
+      (declared last) — moved before layout so corner buttons receive
+      clicks; ⋯ now fires menu-requested(id,title).
+- [x] 7.4 Fix on_narration_play_pause state machine (lib.rs):
+      Idle/Error → StartNarration{None}, Paused → Resume,
+      Speaking/Loading → Pause. Audible verification pending Windows
+      TTS host (7C) — FakeTtsHost is silent by design.
+
+### 7C. Windows TTS host (WinRT SpeechSynthesizer)
+- [x] 7.5 reeda-tts: add [target.'cfg(windows)'.dependencies] windows crate
+      (Media_SpeechSynthesis, Media_Playback, Storage_Streams, Foundation,
+      Media_Core, Win32_System_Com, Win32_Foundation).
+- [x] 7.6 Implement WindowsTtsHost (windows_host.rs): worker thread owns
+      SpeechSynthesizer + MediaPlayer; speak/stop/pause/resume/set_rate/
+      set_pitch/poll; MediaEnded → Done; Mutex<VecDeque> queue drained by
+      poll(). Rate mapped: engine 0.5–2.5 multiplier → WinRT -10..10 via
+      (rate - 1.0) * 5.0. Pitch: WinRT SpeechSynthesizer does not expose
+      a pitch control — silently ignored (Android-only for now).
+- [x] 7.7 reeda-core: create_platform_tts_host() factory (cfg(windows));
+      reeda-ui: desktop #[cfg(not(platform-android))] wires it. Falls back
+      to FakeTtsHost with logged warning if WinRT init fails.
+- [x] 7.8 Unit tests: 194 workspace tests green (98 core + 54 tts + 24
+      search + 16 pdf + 1 epub); clippy clean with undocumented-unsafe
+      safety comment. End-to-end audio verification pending user handoff.
+
+### 7D. Diagnostics & handoff
+- [ ] 7.9 Panic hook + append logger (%TEMP%\reeda.log): startup steps,
+      Event::Error/ImportFailed, panic messages.
+- [ ] 7.10 Rebuild release + bundle pdfium.dll; print SHA256; user verifies
+      delete/narration/PDF-open on their machine.

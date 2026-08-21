@@ -14,12 +14,21 @@ export struct BookInfo {
 export component BookCard inherits Rectangle {
     in property < BookInfo > book;
     callback clicked(string);
-    callback edit-requested(string);
+    /// ⋯ button — opens the per-cover context menu (UI_UX-CONTEXT.md §3).
+    callback menu-requested(string, string);
 
     width: 150px;
     height: 220px;
     background: Theme.current.surface;
     border-radius: 8px;
+
+    // Card-level tap target (declared BEFORE the layout so corner buttons
+    // stay above it in z-order and keep receiving clicks).
+    touch := TouchArea {
+        accessible-role: button;
+        accessible-label: @tr("Open book");
+        clicked => { root.clicked(book.book-id); }
+    }
 
     VerticalLayout {
         padding: 8px;
@@ -59,8 +68,8 @@ export component BookCard inherits Rectangle {
 
                 TouchArea {
                     accessible-role: button;
-                    accessible-label: @tr("Edit book");
-                    clicked => { root.edit-requested(book.book-id); }
+                    accessible-label: @tr("Book menu");
+                    clicked => { root.menu-requested(book.book-id, book.title); }
                 }
             }
         }
@@ -96,11 +105,5 @@ export component BookCard inherits Rectangle {
                 border-radius: 2px;
             }
         }
-    }
-
-    touch := TouchArea {
-        accessible-role: button;
-        accessible-label: @tr("Open book");
-        clicked => { root.clicked(book.book-id); }
     }
 }

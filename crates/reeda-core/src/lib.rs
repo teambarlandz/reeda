@@ -26,6 +26,27 @@ pub fn crate_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
+/// Create a platform-appropriate TTS host.
+///
+/// Returns `None` on platforms without a native TTS backend (the caller
+/// should keep the built-in [`FakeTtsHost`] in that case).
+pub fn create_platform_tts_host() -> Option<Box<dyn reeda_tts::engine::TtsHost>> {
+    #[cfg(windows)]
+    {
+        match reeda_tts::windows_host::WindowsTtsHost::new() {
+            Ok(host) => Some(Box::new(host)),
+            Err(e) => {
+                eprintln!("WindowsTtsHost init failed: {e}");
+                None
+            }
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

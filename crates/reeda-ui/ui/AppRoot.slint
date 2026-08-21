@@ -8,7 +8,7 @@ import { ReaderScreen, LineRun, OutlineItem } from "./ReaderScreen.slint";
 import { NotesScreen, NotesEntry } from "./NotesScreen.slint";
 import { BookmarksScreen, BookmarkEntry } from "./BookmarksScreen.slint";
 import { SettingsScreen } from "./SettingsScreen.slint";
-import { ErrorDialog, MetadataDialog, NoteDialog } from "./Dialogs.slint";
+import { ErrorDialog, MetadataDialog, NoteDialog, ConfirmDialog } from "./Dialogs.slint";
 import { SearchScreen, SearchHit } from "./SearchScreen.slint";
 
 export component AppRoot inherits Window {
@@ -62,6 +62,11 @@ export component AppRoot inherits Window {
     in-out property < string > metadata-title: "";
     in-out property < string > metadata-author: "";
     in-out property < string > metadata-book-id: "";
+
+    // ── Delete-book confirmation (UI_UX-CONTEXT.md §3 "Delete (Confirm)")
+    in-out property < bool > delete-confirm-open: false;
+    in-out property < string > delete-confirm-id: "";
+    in-out property < string > delete-confirm-title: "";
 
     // ── Settings ────────────────────────────────────────────────────
     in-out property < int > settings-theme-index: 0;
@@ -118,6 +123,8 @@ export component AppRoot inherits Window {
     callback metadata-requested(string);
     callback metadata-saved(string, string);
     callback metadata-cancelled();
+    callback delete-requested(string, string);
+    callback book-delete-confirmed(string);
     callback settings-back();
     callback theme-selected(int);
     callback font-size-changed(int);
@@ -159,6 +166,12 @@ export component AppRoot inherits Window {
         edit-requested(id) => {
             root.metadata-book-id = id;
             root.metadata-requested(id);
+        }
+
+        delete-requested(id, title) => {
+            root.delete-confirm-id = id;
+            root.delete-confirm-title = title;
+            root.delete-confirm-open = true;
         }
 
         settings-requested => {
@@ -379,5 +392,13 @@ export component AppRoot inherits Window {
             root.note-dialog-open = false;
             root.note-cancelled();
         }
+    }
+
+    ConfirmDialog {
+        message: "Delete \"" + root.delete-confirm-title + "\"?\n\nThis removes the book, its stored files, annotations and search index entries.";
+        open: root.delete-confirm-open;
+
+        confirmed => { root.book-delete-confirmed(root.delete-confirm-id); }
+        cancelled => { }
     }
 }

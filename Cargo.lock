@@ -4786,6 +4786,7 @@ dependencies = [
  "jni 0.21.1",
  "ndk-context",
  "reeda-epub",
+ "windows",
 ]
 
 [[package]]
